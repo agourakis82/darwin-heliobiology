@@ -20,7 +20,12 @@ class ScientificExpectation:
 class AletheiaValidator:
     """Valida correlações geomagnéticas vs. saúde mental com dados públicos."""
 
-    def validate_correlation(self, series_a: Iterable[float], series_b: Iterable[float], expectation: ScientificExpectation) -> Tuple[float, bool]:
+    def validate_correlation(
+        self,
+        series_a: Iterable[float],
+        series_b: Iterable[float],
+        expectation: ScientificExpectation,
+    ) -> Tuple[float, bool]:
         values_a = np.asarray(list(series_a), dtype=float)
         values_b = np.asarray(list(series_b), dtype=float)
         if values_a.size != values_b.size:
@@ -32,6 +37,3 @@ class AletheiaValidator:
         corr = float(np.corrcoef(values_a, values_b)[0, 1])
         within = expectation.lower <= corr <= expectation.upper
         return corr, within
-
-
-

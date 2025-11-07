@@ -86,16 +86,19 @@ class SolarPsychodynamics:
         alerts: List[str] = []
 
         if self.kp_index >= 6 and self.suicidality_index >= 0.4:
-            alerts.append("CRITICAL: tempestade geomagnética coincidindo com risco suicida elevado.")
+            alerts.append(
+                "CRITICAL: tempestade geomagnética coincidindo com risco suicida elevado."
+            )
 
         if self.dst_index <= -50 and self.heart_rate_variability < 50:
             alerts.append("ALTA TENSÃO AUTONÔMICA: Dst tempestuoso + HRV deprimida.")
 
         if abs(self.circadian_shift) >= 2 and self.mood_score <= 0.3:
-            alerts.append("DISRUPÇÃO CIRCADIANA: desalinhamento >2h associado a humor severamente negativo.")
+            alerts.append(
+                "DISRUPÇÃO CIRCADIANA: desalinhamento >2h associado a humor severamente negativo."
+            )
 
         if not alerts:
             alerts.append("Neutral: estado dentro de faixa homeostática.")
 
         return alerts
-

@@ -13,7 +13,12 @@ from typing import Iterable, List, Optional
 
 import requests
 
-from darwin_heliobiology.models.solar import IMFVector, SolarIndex, SolarObservation, SolarWindSample
+from darwin_heliobiology.models.solar import (
+    IMFVector,
+    SolarIndex,
+    SolarObservation,
+    SolarWindSample,
+)
 
 
 DEFAULT_TIMEOUT = 10
@@ -144,5 +149,6 @@ class SolarAtlas:
             "window_hours": hours,
         }
 
-        return SolarObservation(kp_series=kp, dst_series=dst, solar_wind=wind, imf=imf, metadata=metadata)
-
+        return SolarObservation(
+            kp_series=kp, dst_series=dst, solar_wind=wind, imf=imf, metadata=metadata
+        )

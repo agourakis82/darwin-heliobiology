@@ -51,6 +51,3 @@ class SolarObservation:
     solar_wind: List[SolarWindSample]
     imf: List[IMFVector]
     metadata: Optional[dict] = None
-
-
-

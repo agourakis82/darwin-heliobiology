@@ -65,20 +65,26 @@ class KairosForecaster:
         risk = self._risk_projection(kp_forecast, dst_forecast, snapshot)
 
         timestamps = np.arange(1, steps + 1)
-        return ForecastResult(timestamps=timestamps, kp_forecast=kp_forecast, dst_forecast=dst_forecast, risk_projection=risk)
+        return ForecastResult(
+            timestamps=timestamps,
+            kp_forecast=kp_forecast,
+            dst_forecast=dst_forecast,
+            risk_projection=risk,
+        )
 
-    def _mean_reverting_forecast(self, last_value: float, baseline: float, steps: int) -> np.ndarray:
+    def _mean_reverting_forecast(
+        self, last_value: float, baseline: float, steps: int
+    ) -> np.ndarray:
         horizon = np.arange(1, steps + 1)
         reversion = baseline + (last_value - baseline) * np.exp(-0.3 * horizon)
         return reversion
 
-    def _risk_projection(self, kp: np.ndarray, dst: np.ndarray, snapshot: AutonomicSnapshot) -> np.ndarray:
+    def _risk_projection(
+        self, kp: np.ndarray, dst: np.ndarray, snapshot: AutonomicSnapshot
+    ) -> np.ndarray:
         sensitivity = snapshot.normalized_sensitivity()
         kp_component = np.clip((kp - 4) / 4, 0.0, 1.0)
         dst_component = np.clip((-dst - 30) / 100, 0.0, 1.0)
         combined = 0.6 * kp_component + 0.4 * dst_component
         adjusted = np.clip(combined * (0.5 + sensitivity), 0.0, 1.0)
         return adjusted
-
-
-

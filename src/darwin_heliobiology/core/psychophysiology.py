@@ -60,6 +60,3 @@ def merge_multimodal(observation: Dict[str, float], mood: Dict[str, float]) -> L
     geomag = [observation.get("kp", 0.0), observation.get("dst", 0.0), observation.get("bz", 0.0)]
     mood_vector = list(mood.values())
     return geomag + mood_vector
-
-
-
