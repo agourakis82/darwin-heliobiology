@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass(slots=True)
@@ -50,4 +50,4 @@ class SolarObservation:
     dst_series: List[SolarIndex]
     solar_wind: List[SolarWindSample]
     imf: List[IMFVector]
-    metadata: Optional[dict] = None
+    metadata: Optional[Dict[str, Any]] = None

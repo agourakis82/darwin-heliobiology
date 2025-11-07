@@ -28,6 +28,7 @@ pytest-cov = ">=4.1"
 mypy = ">=1.8"
 black = ">=24.3"
 ruff = ">=0.1.6"
+types-requests = ">=2.32"
 
 [tool.mypy]
 python_version = "3.11"
