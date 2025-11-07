@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, List, Optional, cast
+from typing import Any, List, Optional
 
 import requests
 
@@ -53,7 +53,9 @@ class SolarAtlas:
         response = self._http().get(url, timeout=self.timeout)
         response.raise_for_status()
         data = response.json()
-        return cast(List[Any], data)
+        if isinstance(data, list):
+            return list(data)
+        return [data]
 
     # ------------------------------ KPI séries ------------------------------
     def fetch_kp_index(self, hours: int = 24) -> List[SolarIndex]:

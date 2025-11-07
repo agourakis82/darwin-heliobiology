@@ -14,6 +14,7 @@ from .core.solar_atlas import SolarAtlas
 from .datasets.public_sources import DatasetReference, PUBLIC_DATASETS
 from .phase_space import SolarPsychodynamics
 from .services import AletheiaValidator, ForecastResult, KairosForecaster, ScientificExpectation
+from .metrics.helio_index import HelioMindIndexResult, HelioMindComponents, compute_helio_mind_index
 
 __all__ = [
     "SolarAtlas",
@@ -28,4 +29,7 @@ __all__ = [
     "ForecastResult",
     "AletheiaValidator",
     "ScientificExpectation",
+    "HelioMindIndexResult",
+    "HelioMindComponents",
+    "compute_helio_mind_index",
 ]
