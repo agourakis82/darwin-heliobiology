@@ -19,7 +19,7 @@
 1. `scripts/fetch_noaa.py` — baixa e cacheia índices Kp/Dst/Bz (JSON → Parquet).
 2. `scripts/fetch_omni.py` — dados do OMNIWeb via REST.
 3. `scripts/fetch_who.py` — extrai tabelas WHO mortality (CSV).
-4. `scripts/build_heliomind_index.py` — compõe métricas e salva em `processed/heliomind_index.parquet`.
+4. `scripts/build_heliomind_index.py` — calcula o HelioMind Index e exporta (Parquet/JSON/CSV).
 
 ## Controles de qualidade
 - Checksums e versões dos datasets (registrar em `data/VERSIONS.md`).

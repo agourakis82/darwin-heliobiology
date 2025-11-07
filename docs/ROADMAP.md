@@ -7,7 +7,7 @@
 - [ ] Criar doc `DATASET_CATALOG.md`
 
 ## Sprint S1 — HelioMind Index & Biomarkers (5 dias)
-- [ ] Construir `HelioMind Index` (ingestão NOAA/NASA, API, dashboard)
+- [x] Construir `HelioMind Index` (ingestão NOAA/NASA, API, dashboard)
 - [ ] Pipeline HRV + mood com datasets públicos
 - [ ] Documentar `HELIOBIOLOGY_DATA_LAKE.md`
 

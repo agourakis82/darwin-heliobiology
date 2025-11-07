@@ -23,3 +23,8 @@ Veja `docs/ROADMAP.md` para sprints e entregáveis.
 
 ## Licença
 MIT.
+
+## HelioMind Index
+- Executar `poetry run python scripts/build_heliomind_index.py --dry-run` para visualizar a métrica.
+- Usar `--output data/processed/heliomind_index.parquet` ou `.json/.csv` para persistir no data lake.
+
