@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Poetry
+        run: pip install poetry
+      - name: Install dependencies
+        run: |
+          poetry install
+      - name: Lint
+        run: |
+          poetry run black --check src
+          poetry run ruff src tests
+      - name: Type check
+        run: |
+          poetry run mypy src
+      - name: Tests
+        run: |
+          poetry run pytest --cov=src --cov-report=xml
