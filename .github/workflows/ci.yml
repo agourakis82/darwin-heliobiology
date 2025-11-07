@@ -20,7 +20,7 @@ jobs:
       - name: Lint
         run: |
           poetry run black --check src
-          poetry run ruff src tests
+          poetry run ruff check src tests
       - name: Type check
         run: |
           poetry run mypy src
