@@ -49,3 +49,9 @@ hr_mean | entropy | mood_score | mood_label | dataset | meta_version
 - Task Force of ESC/NASPE, "Heart rate variability: standards of measurement" (1996).
 - Can et al., WESAD dataset (2019).
 - Recent SOTA: Temporal Fusion Transformers, TimesNet para previsão multimodal.
+
+### Ingestão WESAD
+- Script: `scripts/ingest_wesad.py` (download + extração + features).
+- Espera arquivos `rr.csv` por participante; saída padrão: `data/processed/hrv_mood_wesad.csv`.
+- Parâmetros: `--window-minutes`, `--min-samples` (default 5 min / 30 amostras).
+

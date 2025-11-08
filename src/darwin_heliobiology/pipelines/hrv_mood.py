@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, Iterator, List, Mapping, Sequence
+from typing import Iterable, List, Mapping, Sequence
 
 import pandas as pd
 
@@ -23,13 +23,6 @@ class HRVMoodRecord:
     metadata: Mapping[str, str]
 
 
-def _rolling_windows(
-    rr_stream: Sequence[float], samples_per_window: int
-) -> Iterator[Sequence[float]]:
-    for idx in range(0, len(rr_stream) - samples_per_window + 1, samples_per_window):
-        yield rr_stream[idx : idx + samples_per_window]
-
-
 def build_hrv_mood_records(
     *,
     subject_id: str,
@@ -39,38 +32,44 @@ def build_hrv_mood_records(
     scales: Mapping[str, Sequence[float]],
     timestamps: Sequence[datetime],
     window_minutes: int = 30,
+    min_samples: int = 2,
 ) -> List[HRVMoodRecord]:
-    """Cria registros HRV+Mood alinhados.
-
-    Parameters
-    ----------
-    rr_intervals_ms: sequências RR pré-filtradas (mesmo tamanho que timestamps).
-    timestamps: timestamps correspondentes a cada RR.
-    mood_responses: respostas cruas (ex: {"PANAS_pos": 4}).
-    """
+    """Cria registros HRV+Mood alinhados usando janelas temporais regulares."""
 
     if len(rr_intervals_ms) != len(timestamps):
         raise ValueError("RR intervals e timestamps devem ter o mesmo tamanho")
 
-    samples_per_window = max(1, int(window_minutes))
     mood_score = make_mood_score(mood_responses, scales)
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(timestamps),
+            "rr_ms": rr_intervals_ms,
+        }
+    ).sort_values("timestamp")
 
     records: List[HRVMoodRecord] = []
-    rr_list = list(rr_intervals_ms)
-    ts_list = list(timestamps)
+    first_ts = df["timestamp"].iloc[0]
+    grouper = pd.Grouper(
+        key="timestamp", freq=f"{window_minutes}min", label="right", closed="right", origin=first_ts
+    )
+    for window_end, group in df.groupby(grouper):
+        if not isinstance(window_end, pd.Timestamp):
+            continue
+        if len(group) < min_samples:
+            continue
 
-    for window_index, window_rr in enumerate(_rolling_windows(rr_list, samples_per_window)):
-        end_timestamp = ts_list[min(len(ts_list) - 1, (window_index + 1) * samples_per_window - 1)]
-        hrv_features = extract_hrv_features(window_rr)
+        rr_values = group["rr_ms"].astype(float).tolist()
+        hrv_features = extract_hrv_features(rr_values)
+
         records.append(
             HRVMoodRecord(
                 subject_id=subject_id,
-                timestamp=end_timestamp,
+                timestamp=window_end.to_pydatetime(),
                 window_minutes=window_minutes,
                 hrv_features=hrv_features,
                 mood=mood_score,
                 dataset=dataset,
-                metadata={"windows": str(samples_per_window)},
+                metadata={"samples": str(len(rr_values))},
             )
         )
 
@@ -94,7 +93,7 @@ def records_to_dataframe(records: Iterable[HRVMoodRecord]) -> pd.DataFrame:
                 "hr_mean": rec.hrv_features.mean_hr,
                 "median_rr": rec.hrv_features.median_rr,
                 "sample_entropy": rec.hrv_features.sample_entropy,
-                "meta_windows": rec.metadata.get("windows", ""),
+                "meta_samples": rec.metadata.get("samples", ""),
             }
         )
     return pd.DataFrame(rows)
