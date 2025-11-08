@@ -8,7 +8,7 @@
 
 ## Sprint S1 — HelioMind Index & Biomarkers (5 dias)
 - [x] Construir `HelioMind Index` (ingestão NOAA/NASA, API, dashboard)
-- [ ] Pipeline HRV + mood com datasets públicos
+- [x] Pipeline HRV + mood com datasets públicos
 - [ ] Documentar `HELIOBIOLOGY_DATA_LAKE.md`
 
 ## Sprint S2 — Atlas, Passaporte e Metaanálise (6 dias)

@@ -27,4 +27,8 @@ MIT.
 ## HelioMind Index
 - Executar `poetry run python scripts/build_heliomind_index.py --dry-run` para visualizar a métrica.
 - Usar `--output data/processed/heliomind_index.parquet` ou `.json/.csv` para persistir no data lake.
+## HRV + Mood Pipeline
+- Executar `scripts/ingest_wesad.py --skip-download --extract-to <dir> --output data/processed/hrv_mood_wesad.csv` para processar arquivos locais do WESAD.
+- Ajustar parâmetros `--window-minutes` e `--min-samples` conforme necessidade (default 5min / 30 amostras).
+- Especificações detalhadas em `docs/HRV_MOOD_SPEC.md`.
 
