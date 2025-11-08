@@ -8,4 +8,4 @@
 - CLI `scripts/build_heliomind_index.py` para exportar dataframe em JSON/CSV.
 - Pipeline HRV + mood com resample temporal e normalização multi-escala.
 - Ingestão WESAD via `scripts/ingest_wesad.py` (download, extração e export Parquet/CSV).
-
+- Panorama SOTA heliobiologia (docs/SOTA_HELIOBIOLOGY.md) com modelos e datasets prioritários.

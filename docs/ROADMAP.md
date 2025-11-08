@@ -9,12 +9,15 @@
 ## Sprint S1 — HelioMind Index & Biomarkers (5 dias)
 - [x] Construir `HelioMind Index` (ingestão NOAA/NASA, API, dashboard)
 - [x] Pipeline HRV + mood com datasets públicos
+- [x] Panorama SOTA heliobiologia (ver `docs/SOTA_HELIOBIOLOGY.md`)
 - [ ] Documentar `HELIOBIOLOGY_DATA_LAKE.md`
 
 ## Sprint S2 — Atlas, Passaporte e Metaanálise (6 dias)
 - [ ] Atlas temporal de assinaturas geomagnéticas
 - [ ] Passaporte psico-geomagnético (personalização)
 - [ ] Motor `Aletheia` para metaanálise automatizada
+- [ ] Pipeline TFT/PatchTST com features HelioMind + HRV
+- [ ] Rodar PCMCI+ com priors Helio ↔ Mood
 
 ## Sprint S3 — Clínica, Simulação e Publicação (7 dias)
 - [ ] Carta clínica heliobiológica (SOAP auto)

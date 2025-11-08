@@ -21,6 +21,9 @@ poetry run mypy src
 ## Roadmap
 Veja `docs/ROADMAP.md` para sprints e entregáveis.
 
+## Referências SOTA
+- Panorama atualizado em `docs/SOTA_HELIOBIOLOGY.md` (modelos, datasets e experimentos recomendados).
+
 ## Licença
 MIT.
 
