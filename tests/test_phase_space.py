@@ -29,4 +29,3 @@ def test_epistemic_alerts_surface_clinical_warnings():
     alerts = estado.epistemic_alerts()
 
     assert any("CRITICAL" in alerta for alerta in alerts)
-

@@ -1,16 +1,17 @@
 # DARWIN Heliobiology — Roadmap
 
 ## Sprint S0 — Bootstrap (2 dias)
-- [ ] Exportar pacote inicial
-- [ ] Configurar Poetry + dependências
-- [ ] Configurar CI (lint, mypy, pytest, coverage)
-- [ ] Criar doc `DATASET_CATALOG.md`
+- [x] Exportar pacote inicial
+- [x] Configurar Poetry + dependências
+- [x] Configurar CI (lint, mypy, pytest, coverage)
+- [x] Criar doc `DATASET_CATALOG.md`
 
 ## Sprint S1 — HelioMind Index & Biomarkers (5 dias)
 - [x] Construir `HelioMind Index` (ingestão NOAA/NASA, API, dashboard)
 - [x] Pipeline HRV + mood com datasets públicos
 - [x] Panorama SOTA heliobiologia (ver `docs/SOTA_HELIOBIOLOGY.md`)
-- [ ] Documentar `HELIOBIOLOGY_DATA_LAKE.md`
+- [x] Documentar `HELIOBIOLOGY_DATA_LAKE.md`
+- [x] Scripts de ingestão: `fetch_noaa.py`, `fetch_omni.py`, `fetch_who.py`, `build_hrv_mood_pipeline.py`
 
 ## Sprint S2 — Atlas, Passaporte e Metaanálise (6 dias)
 - [ ] Atlas temporal de assinaturas geomagnéticas

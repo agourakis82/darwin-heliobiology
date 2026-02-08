@@ -20,7 +20,6 @@ from darwin_heliobiology.models.solar import (
     SolarWindSample,
 )
 
-
 DEFAULT_TIMEOUT = 10
 
 

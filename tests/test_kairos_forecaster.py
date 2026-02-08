@@ -25,6 +25,3 @@ def test_forecaster_generates_risk_projection():
     assert result.dst_forecast.shape == (3,)
     assert np.all(result.risk_projection >= 0)
     assert np.all(result.risk_projection <= 1)
-
-
-

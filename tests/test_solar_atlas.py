@@ -8,7 +8,11 @@ from darwin_heliobiology.core.solar_atlas import SolarAtlas
 
 
 def _recent(minutes: int) -> str:
-    return (datetime.now(tz=timezone.utc) - timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z")
+    return (
+        (datetime.now(tz=timezone.utc) - timedelta(minutes=minutes))
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 @pytest.fixture
@@ -61,6 +65,3 @@ def test_fetch_kp_index_filters_by_hours(atlas):
     series = atlas.fetch_kp_index(hours=1)
     assert len(series) == 1
     assert series[0].value == 5.0
-
-
-

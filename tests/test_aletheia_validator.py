@@ -27,4 +27,3 @@ def test_validate_correlation_detects_valid_range():
 
     assert corr >= expectation.lower
     assert within
-

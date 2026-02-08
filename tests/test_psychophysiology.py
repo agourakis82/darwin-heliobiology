@@ -36,4 +36,3 @@ def test_merge_multimodal_concatenates_vectors():
 
     assert vector[:3] == [5.0, -40.0, -8.5]
     assert len(vector) == 5
-

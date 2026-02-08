@@ -43,6 +43,21 @@ class IMFVector:
 
 
 @dataclass(slots=True)
+class OMNIHourlyRecord:
+    """Registro horário do dataset OMNI2 (NASA OMNIWeb)."""
+
+    timestamp: datetime
+    bx_gsm_nt: float
+    by_gsm_nt: float
+    bz_gsm_nt: float
+    speed_kms: float
+    proton_density_pcm3: float
+    flow_pressure_npa: float
+    kp_index: float
+    dst_nt: float
+
+
+@dataclass(slots=True)
 class SolarObservation:
     """Fotografia agregada dos principais indicadores solares."""
 

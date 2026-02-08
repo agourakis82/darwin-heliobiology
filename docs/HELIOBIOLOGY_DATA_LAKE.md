@@ -16,10 +16,12 @@
 ```
 
 ## Pipeline de ingestão
-1. `scripts/fetch_noaa.py` — baixa e cacheia índices Kp/Dst/Bz (JSON → Parquet).
-2. `scripts/fetch_omni.py` — dados do OMNIWeb via REST.
-3. `scripts/fetch_who.py` — extrai tabelas WHO mortality (CSV).
-4. `scripts/build_heliomind_index.py` — calcula o HelioMind Index e exporta (Parquet/JSON/CSV).
+1. `scripts/fetch_noaa.py` — baixa e cacheia índices Kp/Dst/Bz/vento solar via `SolarAtlas` (Parquet/CSV/JSON).
+2. `scripts/fetch_omni.py` — baixa dados OMNI2 hourly (NASA SPDF) em formato fixed-width e converte para Parquet/CSV.
+3. `scripts/fetch_who.py` — baixa e extrai ZIPs de mortalidade WHO (ICD-10 + população) para CSVs locais.
+4. `scripts/build_heliomind_index.py` — calcula o HelioMind Index a partir de dados NOAA e exporta (Parquet/JSON/CSV).
+5. `scripts/ingest_wesad.py` — baixa e processa o dataset WESAD gerando features HRV + mood.
+6. `scripts/build_hrv_mood_pipeline.py` — pipeline genérico: qualquer CSV com RR intervals → features HRV + mood.
 
 ## Controles de qualidade
 - Checksums e versões dos datasets (registrar em `data/VERSIONS.md`).
@@ -28,4 +30,4 @@
 
 ## Próximos passos
 - Automatizar ingestão com GitHub Actions (cron semanal).
-- Documentar termos de uso específicos (ver `docs/ETHICS_COMPLIANCE.md`).
+- Criar `docs/ETHICS_COMPLIANCE.md` com termos de uso por dataset.

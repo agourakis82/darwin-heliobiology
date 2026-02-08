@@ -14,7 +14,6 @@ from numpy.typing import NDArray
 
 from darwin_heliobiology.models.solar import IMFVector, SolarObservation, SolarWindSample
 
-
 FloatArray = NDArray[np.float64]
 
 
