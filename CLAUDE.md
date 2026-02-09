@@ -77,9 +77,11 @@ Public wearables (WESAD etc.) → HRV extraction (features/hrv.py)
 - **`features/hrv.py`** — HRV metric extraction (RMSSD, SDNN, pNN50, sample entropy)
 - **`preprocessing/mood.py`** — Likert scale normalization to [0,1], mood labeling (estavel/vigilancia/alerta)
 - **`metrics/helio_index.py`** — `HelioMindIndexResult`: composite solar activity score [0..1]
-- **`pipelines/`** — `hrv_mood.py` (HRV+mood records), `heliomind_builder.py` (solar index pipeline)
+- **`core/geomagnetic_atlas.py`** — Temporal geomagnetic signature atlas (daily/monthly/quarterly profiles)
+- **`pipelines/`** — `hrv_mood.py` (HRV+mood records), `heliomind_builder.py` (solar index pipeline), `neural_forecast.py` (TFT/PatchTST)
 - **`services/kairos_forecaster.py`** — Hybrid forecaster (exponential smoothing + Bayesian regression)
-- **`services/aletheia_validator.py`** — Validates correlations against Q1 literature expectations
+- **`services/aletheia_validator.py`** — Validates correlations + DerSimonian-Laird random-effects meta-analysis
+- **`services/causal_discovery.py`** — PCMCI+ causal discovery with heliobiological priors via tigramite
 - **`datasets/`** — Public dataset catalog, WESAD ingestion, NOAA raw cache, OMNI2 hourly, WHO mortality
 
 ### Key Domain Entities (from ONTOLOGY.md)
@@ -128,6 +130,15 @@ poetry run python scripts/fetch_who.py --output-dir data/raw/who
 
 # Generic HRV+mood pipeline from any CSV with timestamp + rr_ms columns
 poetry run python scripts/build_hrv_mood_pipeline.py --input data/raw/rr_data.csv --output data/processed/hrv_mood_features.parquet --window-minutes 5
+
+# Build geomagnetic atlas from OMNI2 data
+poetry run python scripts/build_geomagnetic_atlas.py --input data/raw/nasa_omni/omni2_hourly.parquet --resolution monthly --output data/processed/geomagnetic_atlas.parquet
+
+# Run TFT/PatchTST neural forecast
+poetry run python scripts/run_neural_forecast.py --solar-input data/processed/heliomind_index.parquet --model tft --horizon 24 --output data/processed/neural_forecast.parquet
+
+# Run PCMCI+ causal discovery
+poetry run python scripts/run_causal_discovery.py --solar-input data/raw/nasa_omni/omni2_hourly.parquet --hrv-input data/processed/hrv_mood_wesad.csv --tau-max 48 --use-priors --output data/processed/causal_links.parquet
 ```
 
 ## Agent Autonomy

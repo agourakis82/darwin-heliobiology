@@ -14,11 +14,11 @@
 - [x] Scripts de ingestão: `fetch_noaa.py`, `fetch_omni.py`, `fetch_who.py`, `build_hrv_mood_pipeline.py`
 
 ## Sprint S2 — Atlas, Passaporte e Metaanálise (6 dias)
-- [ ] Atlas temporal de assinaturas geomagnéticas
+- [x] Atlas temporal de assinaturas geomagnéticas
 - [ ] Passaporte psico-geomagnético (personalização)
-- [ ] Motor `Aletheia` para metaanálise automatizada
-- [ ] Pipeline TFT/PatchTST com features HelioMind + HRV
-- [ ] Rodar PCMCI+ com priors Helio ↔ Mood
+- [x] Motor `Aletheia` para metaanálise automatizada
+- [x] Pipeline TFT/PatchTST com features HelioMind + HRV
+- [x] Rodar PCMCI+ com priors Helio ↔ Mood
 
 ## Sprint S3 — Clínica, Simulação e Publicação (7 dias)
 - [ ] Carta clínica heliobiológica (SOAP auto)
