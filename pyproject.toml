@@ -1,6 +1,6 @@
 [project]
 name = "darwin-heliobiology"
-version = "0.2.0"
+version = "0.3.0"
 description = "Computational platform for heliobiological studies: Sun ↔ mental health integration"
 authors = [{ name = "Darwin Lab", email = "lab@agourakis.med.br" }, { name = "Demetrios Chiuratto Agourakis" }]
 readme = "README.exocortex"
