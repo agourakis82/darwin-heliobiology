@@ -78,7 +78,7 @@ Public wearables (WESAD etc.) → HRV extraction (features/hrv.py)
 - **`preprocessing/mood.py`** — Likert scale normalization to [0,1], mood labeling (estavel/vigilancia/alerta)
 - **`metrics/helio_index.py`** — `HelioMindIndexResult`: composite solar activity score [0..1]
 - **`core/geomagnetic_atlas.py`** — Temporal geomagnetic signature atlas (daily/monthly/quarterly profiles)
-- **`pipelines/`** — `hrv_mood.py` (HRV+mood records), `heliomind_builder.py` (solar index pipeline), `neural_forecast.py` (TFT/PatchTST)
+- **`pipelines/`** — `hrv_mood.py` (HRV+mood records), `heliomind_builder.py` (solar index pipeline), `neural_forecast.py` (TFT/PatchTST), `calibration.py` (empirical calibration against OMNI2)
 - **`services/kairos_forecaster.py`** — Hybrid forecaster (exponential smoothing + Bayesian regression)
 - **`services/aletheia_validator.py`** — Validates correlations + DerSimonian-Laird random-effects meta-analysis
 - **`services/causal_discovery.py`** — PCMCI+ causal discovery with heliobiological priors via tigramite
@@ -153,6 +153,12 @@ poetry run python scripts/run_causal_discovery.py --solar-input data/raw/nasa_om
 
 # Build psycho-geomagnetic passport for a subject
 poetry run python scripts/build_passport.py --hrv-input data/processed/hrv_mood_wesad.csv --solar-input data/raw/nasa_omni/omni2_hourly.parquet --subject-id S2 --output data/processed/passport/S2_passport.parquet
+
+# Calibrate HelioMind Index against OMNI2 data (empirical p99 normalization)
+poetry run python scripts/calibrate_heliomind.py --omni-input data/raw/nasa_omni/omni2_hourly.parquet --output data/processed/calibration_report.parquet --apply
+
+# Validate PCMCI+ pipeline on solar-only variables (no HRV)
+poetry run python scripts/validate_solar_pcmci.py --omni-input data/raw/nasa_omni/omni2_hourly.parquet --tau-max 24 --alpha 0.05 --output data/processed/causal_solar_validation.parquet
 ```
 
 ## Agent Autonomy

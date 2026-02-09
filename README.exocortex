@@ -1,31 +1,33 @@
 # DARWIN HELIOBIOLOGY — README.exocortex
 
-> “Cartografar a heliobiologia é desenhar o gradiente entre Sol e sinapse.”
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18558930.svg)](https://doi.org/10.5281/zenodo.18558930)
 
-## Mandato
-- Formalizar um exocórtex dedicado a correlações Sol ↔ saúde mental.
-- Cada commit é uma tese sobre ritmos circadianos, tempestades geomagnéticas e vulnerabilidade psíquica.
+> "Mapping heliobiology is drawing the gradient between Sun and synapse."
 
-## Princípios
-1. **Fenomenologia codificada** — classes descrevem estados psicodinâmicos.
-2. **Dinâmica sistêmica** — monitoramento contínuo de entropia/curvatura.
-3. **Discordância produtiva** — divergências entre sinais solares e clínicos são preservadas via `@epistemically_logged`.
-4. **Memória epistemológica** — toda previsão registra hipótese, teoria, fenomenologia e revisão.
-5. **Estética como heurística** — elegância visual/funcional denuncia ontologias corretas.
+## Mandate
+- Establish a dedicated exocortex for Sun ↔ mental health correlations.
+- Every commit is a thesis on circadian rhythms, geomagnetic storms, and psychic vulnerability.
 
-## Estrutura
-- `packages/darwin-heliobiology/src/` — núcleo fenomenológico (`SolarPsychodynamics`).
-  - `core/solar_atlas.py` — ingestão NOAA/NASA 100% pública
-  - `core/psychophysiology.py` — normalizações HRV/mood e embeddings
-- `packages/darwin-heliobiology/src/darwin_heliobiology/services/` — previsões (`KairosForecaster`) e validação científica (`AletheiaValidator`).
-- `packages/darwin-heliobiology/src/darwin_heliobiology/datasets/public_sources.py` — catálogo de datasets públicos.
-- `packages/darwin-heliobiology/src/darwin_heliobiology/models/` — modelos de dados.
-- `packages/darwin-heliobiology/docs/` — literatura Q1, protocolos clínicos, dashboards de entropia.
-- `packages/darwin-heliobiology/tests/` — unidade + validação científica (Kp ↔ saúde mental).
+## Principles
+1. **Encoded phenomenology** — classes describe psychodynamic states.
+2. **Systemic dynamics** — continuous entropy/curvature monitoring.
+3. **Productive discordance** — divergences between solar and clinical signals are preserved via `@epistemically_logged`.
+4. **Epistemological memory** — every prediction logs hypothesis, theory, phenomenology, and revision.
+5. **Aesthetics as heuristic** — visual/functional elegance reveals correct ontologies.
 
-## Próximos passos
-- Migrar serviços preditivos existentes (`SolarEffectsPredictor`, `MentalStateAnalyzer`).
-- Conectar UI Next.js/Gradio ao backend isolado.
-- Instrumentar Grafana/Kibana para entropia e curvatura em tempo real.
-- Planejar ensaio clínico longitudinal com métricas reprodutíveis.
+## Architecture
+- `packages/darwin-heliobiology/src/` — phenomenological core (`SolarPsychodynamics`).
+  - `core/solar_atlas.py` — 100% public NOAA/NASA ingestion
+  - `core/psychophysiology.py` — HRV/mood normalization and embeddings
+- `packages/darwin-heliobiology/src/darwin_heliobiology/services/` — forecasting (`KairosForecaster`) and scientific validation (`AletheiaValidator`).
+- `packages/darwin-heliobiology/src/darwin_heliobiology/datasets/public_sources.py` — public dataset catalog.
+- `packages/darwin-heliobiology/src/darwin_heliobiology/models/` — data models.
+- `packages/darwin-heliobiology/docs/` — Q1 literature, clinical protocols, entropy dashboards.
+- `packages/darwin-heliobiology/tests/` — unit + scientific validation (Kp ↔ mental health).
+
+## Next Steps
+- Migrate existing predictive services (`SolarEffectsPredictor`, `MentalStateAnalyzer`).
+- Connect Next.js/Gradio UI to isolated backend.
+- Instrument Grafana/Kibana for real-time entropy and curvature.
+- Plan longitudinal clinical trial with reproducible metrics.
 

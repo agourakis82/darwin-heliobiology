@@ -133,22 +133,36 @@ clínicos, se disponíveis).
 
 ### 5.2 helio_index.py — Constantes de Normalização
 
-| Constante | Valor | Justificativa |
-|-----------|-------|---------------|
-| Kp / 9.0 | Escala Kp vai de 0 a 9 | **CORRETO** — escala oficial NOAA |
-| Dst / 300.0 | Dst extremo ≈ -300 nT (Bastille Day 2000: -301 nT) | **RAZOÁVEL** — baseado em eventos históricos extremos |
-| Bz / 20.0 | Bz extremo ≈ -20 nT em tempestades severas | **RAZOÁVEL** — eventos G4/G5 atingem -15 a -25 nT |
-| Pressão / 300,000 | ρv² normalizado | **EXPLORATÓRIO** — sem referência direta |
-| Variabilidade / 2.5 | std(Kp)/2.5 | **EXPLORATÓRIO** — threshold arbitrário |
+**Calibradas contra OMNI2 2020-2025** (52 608 registros horários). Divisores = percentil 99
+empírico de cada variável transformada. Ver `data/processed/calibration_constants.json`.
+
+| Constante | Valor antigo | Valor calibrado (p99) | Justificativa | Grau |
+|-----------|-------------|----------------------|---------------|------|
+| Kp / 9.0 | 9.0 | 9.0 (inalterado) | Escala oficial NOAA 0-9 | A |
+| \|Dst\| / 78.0 | 300.0 | 78.0 | p99 de abs(min(Dst,0)) em 52k horas | B |
+| Bz sul / 8.7 | 20.0 | 8.7 | p99 de max(-Bz,0) em 52k horas | B |
+| ρv² / 4.36M | 300,000 | 4,364,643 | p99 da pressão dinâmica em 52k horas | B |
+| std(Kp,12h) / 1.57 | 2.5 | 1.57 | p99 da variabilidade rolling 12h | B |
+
+**Nota**: Os divisores antigos (300 nT, 20 nT, 300k) eram baseados em eventos extremos
+históricos ou heurísticas. A calibração p99 usa a distribuição real dos dados, resultando
+em scores mais discriminativos para a faixa de atividade típica (2020-2025).
+
+**Distribuição de scores calibrados** (OMNI2 2020-2025):
+- 86.9% estável, 10.7% vigilância, 0.9% alerta
+- Sensibilidade: Kp 35.8%, Dst 32.0%, Bz 22.8%, Pressão 8.1%, Variabilidade 1.3%
 
 ### 5.3 helio_index.py — Limiares de Alerta
 
-| Limiar | Valor | Justificativa |
-|--------|-------|---------------|
-| `kp_activity >= 0.7` | Kp ≥ 6.3 | Kp ≥ 7 = G3 (forte) pela NOAA. 0.7 × 9 = 6.3 → aproxima G3. **RAZOÁVEL.** |
-| `dst_storm_intensity >= 0.6` | Dst ≤ -180 nT | Dst < -200 nT = tempestade severa. **RAZOÁVEL.** |
-| `bz_reconnection >= 0.5` | Bz ≤ -10 nT | Bz < -10 nT favorece reconexão significativa. **RAZOÁVEL.** |
-| `variability >= 0.6` | std(Kp) ≥ 1.5 | **EXPLORATÓRIO** — sem referência |
+Com constantes calibradas (p99), os limiares representam fração do 99° percentil.
+Um limiar de 0.6 equivale a ~top 5-10% das horas observadas (2020-2025).
+
+| Limiar | Valor físico (calibrado) | Justificativa |
+|--------|--------------------------|---------------|
+| `kp_activity >= 0.7` | Kp ≥ 6.3 | G3 (forte) pela NOAA. **RAZOÁVEL.** |
+| `dst_storm_intensity >= 0.6` | \|Dst\| ≥ 47 nT | Top ~5% das horas. Tempestade moderada. **RAZOÁVEL.** |
+| `bz_reconnection >= 0.5` | Bz sul ≥ 4.4 nT | Top ~8% das horas. Reconexão significativa. **RAZOÁVEL.** |
+| `variability >= 0.6` | std(Kp) ≥ 0.94 | Top ~5% das horas. **EXPLORATÓRIO.** |
 
 ### 5.4 phase_space.py — Limiares de Alerta Epistêmico
 

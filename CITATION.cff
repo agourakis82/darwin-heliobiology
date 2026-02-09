@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+type: software
+title: "DARWIN Heliobiology"
+message: >-
+  If you use this software, please cite it using the metadata
+  from this file.
+authors:
+  - family-names: Agourakis
+    given-names: Demetrios Chiuratto
+    affiliation: Darwin Lab
+    email: lab@agourakis.med.br
+repository-code: "https://github.com/agourakis82/darwin-heliobiology"
+url: "https://zenodo.org/record/18558930"
+abstract: >-
+  DARWIN Heliobiology is a computational platform for heliobiological
+  studies applied to mental health. It integrates NOAA/NASA solar data
+  with wearable health metrics (HRV, mood) to investigate Sun-mental
+  health correlations using only public datasets.
+keywords:
+  - heliobiology
+  - solar activity
+  - mental health
+  - heart rate variability
+  - geomagnetic storms
+  - circadian rhythms
+license: MIT
+version: 0.2.0
+date-released: 2025-02-09
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.18558930"

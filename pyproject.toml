@@ -1,10 +1,18 @@
 [project]
 name = "darwin-heliobiology"
 version = "0.2.0"
-description = "Exocortex heliobiológico: integração Sol ↔ saúde mental"
-authors = [{ name = "Darwin Lab", email = "lab@agourakis.med.br" }]
+description = "Computational platform for heliobiological studies: Sun ↔ mental health integration"
+authors = [{ name = "Darwin Lab", email = "lab@agourakis.med.br" }, { name = "Demetrios Chiuratto Agourakis" }]
 readme = "README.exocortex"
 requires-python = ">=3.11"
+keywords = ["heliobiology", "solar", "mental-health", "hrv", "geomagnetic", "circadian-rhythm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+]
 dependencies = [
   "pydantic>=2.6",
   "numpy>=1.26",
