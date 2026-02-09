@@ -91,7 +91,17 @@ Public wearables (WESAD etc.) → HRV extraction (features/hrv.py)
 - **AutonomicRhythm**: HRV metrics, actigraphy, salivary cortisol
 - **PsychometricTrajectory**: time series of PHQ-9, MADRS, PANSS, suicidality scales
 - **RiskManifold**: generative embedding for decompensation probability (0..1)
-- Singularities = extreme events (Kp >= 7, Dst <= -100, suicidality >= 0.6)
+- Singularities = extreme events (Kp >= 7, Dst <= -100) — suicidality threshold removed (no empirical basis)
+
+### Scientific Grounding
+
+All constants and thresholds are graded A–D per `docs/SCIENTIFIC_FOUNDATIONS.md`:
+- **A (Strong)**: Cardiovascular RR 1.1–1.5 during geomag storms; Kp/Dst/Bz NOAA scales
+- **B (Moderate)**: HRV–geomag (Ong et al. 2022, n=809, RMSSD -14.7ms per Kp IQR)
+- **C (Weak)**: Mental health/suicide correlations (ecological, confounded by seasonality)
+- **D (Exploratory)**: HelioMind weights, wind pressure normalization, sensitivity formula
+
+Ethics and data governance: `docs/ETHICS_COMPLIANCE.md`.
 
 ## Code Style & Conventions
 

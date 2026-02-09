@@ -28,4 +28,7 @@ def test_epistemic_alerts_surface_clinical_warnings():
 
     alerts = estado.epistemic_alerts()
 
-    assert any("CRITICAL" in alerta for alerta in alerts)
+    # Alerta agora marcado como EXPLORATÓRIO (grau D) — ver SCIENTIFIC_FOUNDATIONS.md §5.4
+    assert any("EXPLORATÓRIO" in alerta for alerta in alerts)
+    assert any("ALTA TENSÃO" in alerta for alerta in alerts)
+    assert any("DISRUPÇÃO" in alerta for alerta in alerts)

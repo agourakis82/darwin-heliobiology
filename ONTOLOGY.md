@@ -20,7 +20,11 @@
 ## Geometria
 - Phase space Ψ = (SolarState, AutonomicRhythm, PsychometricTrajectory, CircadianFlux, RiskManifold).
 - Curvatura calculada via divergência entre sinais autonômicos e auto-relato.
-- Singularidades = eventos extremos (Kp ≥ 7, Dst ≤ -100, suicidality ≥ 0.6).
+- Singularidades = eventos extremos (Kp ≥ 7, Dst ≤ -100).
+  - **Nota de evidência**: Kp ≥ 7 = G3 (NOAA, grau A); Dst ≤ -100 = tempestade intensa (grau A).
+  - O limiar de suicidality ≥ 0.6 foi **removido** desta definição por falta de fundamento
+    empírico — não existe estudo demonstrando threshold específico de risco suicida vinculado a
+    atividade geomagnética. Ver `docs/SCIENTIFIC_FOUNDATIONS.md` §3.
 
 ## Invariantes
 - Risco projetado deve respeitar monotonicidade: ↑ perturbação solar ⇒ não diminuir risco sem evidência.

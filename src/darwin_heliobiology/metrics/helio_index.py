@@ -68,6 +68,10 @@ def compute_helio_mind_index(snapshot: SolarObservation) -> HelioMindIndexResult
         variability=_normalize_variability(kp_values),
     )
 
+    # Pesos EXPLORATÓRIOS (grau D) — a ordenação relativa (Kp > Dst > Bz) reflete
+    # a frequência de uso na literatura epidemiológica, mas os valores numéricos
+    # não derivam de estudo empírico.  Calibrar via regressão sobre desfechos
+    # clínicos antes de publicar.  Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.1.
     score = float(
         np.clip(
             0.35 * components.kp_activity
@@ -124,6 +128,7 @@ def _extract_wind_component(samples: List[SolarWindSample], attr: str) -> FloatA
 
 
 def _normalize_kp(kp_values: FloatArray) -> float:
+    """Escala Kp oficial NOAA: 0–9 (grau A)."""
     if kp_values.size == 0:
         return 0.0
     window = kp_values[-min(12, kp_values.size) :]
@@ -131,6 +136,7 @@ def _normalize_kp(kp_values: FloatArray) -> float:
 
 
 def _normalize_dst(dst_values: FloatArray) -> float:
+    """Dst extremo histórico ≈ -300 nT (Bastille Day 2000: -301 nT). Grau A."""
     if dst_values.size == 0:
         return 0.0
     min_dst = float(np.min(dst_values))
@@ -139,6 +145,7 @@ def _normalize_dst(dst_values: FloatArray) -> float:
 
 
 def _normalize_bz(bz_values: FloatArray) -> float:
+    """Bz extremo em tempestades G4/G5 ≈ -15 a -25 nT; 20 nT como cap razoável. Grau A."""
     if bz_values.size == 0:
         return 0.0
     southward = np.clip(-bz_values, 0, None)
@@ -146,6 +153,7 @@ def _normalize_bz(bz_values: FloatArray) -> float:
 
 
 def _normalize_wind_pressure(speed: FloatArray, density: FloatArray) -> float:
+    """Pressão dinâmica ρv²; divisor 300k é EXPLORATÓRIO (grau D)."""
     if speed.size == 0 or density.size == 0:
         return 0.0
     pressure = density * np.square(speed)
@@ -153,6 +161,7 @@ def _normalize_wind_pressure(speed: FloatArray, density: FloatArray) -> float:
 
 
 def _normalize_variability(kp_values: FloatArray) -> float:
+    """std(Kp) / 2.5 — divisor EXPLORATÓRIO (grau D), sem referência empírica."""
     if kp_values.size < 2:
         return 0.0
     window = kp_values[-min(12, kp_values.size) :]
@@ -168,16 +177,20 @@ def _classify(score: float) -> str:
 
 
 def _build_alerts(components: HelioMindComponents) -> List[str]:
+    # Limiares baseados em escalas NOAA G1–G5 (Kp, Dst, Bz) — grau A.
+    # Pressão e variabilidade são EXPLORATÓRIOS (grau D).
+    # "risco neuropsicofisiologico" — evidência cardiovascular (grau A),
+    # evidência psiquiátrica (grau C). Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.3.
     alerts: List[str] = []
-    if components.kp_activity >= 0.7:
+    if components.kp_activity >= 0.7:  # ~Kp 6.3 ≈ G3 (NOAA)
         alerts.append("Kp elevado — tempestade geomagnetica em curso")
-    if components.dst_storm_intensity >= 0.6:
-        alerts.append("Dst muito negativo — maior risco neuropsicofisiologico")
-    if components.bz_reconnection >= 0.5:
+    if components.dst_storm_intensity >= 0.6:  # ~Dst -180 nT — tempestade severa
+        alerts.append("Dst muito negativo — risco cardiovascular elevado (RR ~1.1–1.5)")
+    if components.bz_reconnection >= 0.5:  # ~Bz -10 nT — reconexão significativa
         alerts.append("Bz sul intenso — reconexao magnética acentuada")
-    if components.solar_wind_pressure >= 0.5:
+    if components.solar_wind_pressure >= 0.5:  # EXPLORATÓRIO
         alerts.append("Pressao de vento solar acima da média")
-    if components.variability >= 0.6:
+    if components.variability >= 0.6:  # EXPLORATÓRIO
         alerts.append("Variabilidade geomagnetica alta — flutuações rápidas")
     return alerts
 

@@ -81,21 +81,40 @@ class SolarPsychodynamics:
         }
 
     def epistemic_alerts(self) -> List[str]:
-        """Gera alertas interpretáveis com foco em saúde mental."""
+        """Gera alertas interpretáveis com foco em saúde mental.
+
+        **Graus de evidência** (ver docs/SCIENTIFIC_FOUNDATIONS.md):
+        - Kp + suicidality: EXPLORATÓRIO (grau D) — sem estudo individual causal.
+        - Dst + HRV baixa: FRACA (grau C) — plausível mas não testada em conjunto.
+        - Circadian shift + mood: MODERADA (grau B) — bem documentada em psiquiatria
+          do sono, mas ligação com atividade geomagnética é especulativa.
+        """
 
         alerts: List[str] = []
 
+        # EXPLORATÓRIO (grau D): não existe estudo que associe Kp individual a risco
+        # suicida individual.  Correlações ecológicas (Gordon & Berk 2003) são
+        # confundidas por sazonalidade.
         if self.kp_index >= 6 and self.suicidality_index >= 0.4:
             alerts.append(
-                "CRITICAL: tempestade geomagnética coincidindo com risco suicida elevado."
+                "EXPLORATÓRIO: tempestade geomagnética coincidindo com risco suicida"
+                " elevado — correlação não comprovada em nível individual."
             )
 
+        # Grau C: Dst < -50 nT = tempestade moderada (NOAA); HRV < 50 ms é baixa
+        # (Shaffer & Ginsberg 2017, doi:10.3389/fpubh.2017.00258).
         if self.dst_index <= -50 and self.heart_rate_variability < 50:
-            alerts.append("ALTA TENSÃO AUTONÔMICA: Dst tempestuoso + HRV deprimida.")
+            alerts.append(
+                "ALTA TENSÃO AUTONÔMICA: Dst tempestuoso + HRV deprimida"
+                " (efeito Kp→HRV ~15ms, Ong et al. 2022, PMC9233046)."
+            )
 
+        # Grau B: disrupção circadiana + humor baixo é bem documentada (Walker 2017);
+        # ligação com geomagnetismo é especulativa.
         if abs(self.circadian_shift) >= 2 and self.mood_score <= 0.3:
             alerts.append(
-                "DISRUPÇÃO CIRCADIANA: desalinhamento >2h associado a humor severamente negativo."
+                "DISRUPÇÃO CIRCADIANA: desalinhamento >2h associado a humor severamente"
+                " negativo — mecanismo geomagnético não comprovado."
             )
 
         if not alerts:

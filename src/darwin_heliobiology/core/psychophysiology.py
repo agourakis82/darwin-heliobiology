@@ -17,7 +17,16 @@ class AutonomicSnapshot:
     heart_rate_bpm: float
 
     def normalized_sensitivity(self) -> float:
-        """Sensibilidade geomagnética estimada (0..1)."""
+        """Sensibilidade geomagnética estimada (0..1).
+
+        **Grau D — EXPLORATÓRIA.**  A intuição (menor RMSSD → maior sensibilidade)
+        é consistente com Ong et al. 2022 (PMC9233046), que encontrou RMSSD -14.7ms
+        por IQR de Kp em n=809.  Porém a fórmula exata é heurística sem validação.
+        RMSSD normal em adultos: ~20–60ms (Shaffer & Ginsberg 2017).
+
+        Preferir ``passport_risk_adjustment()`` (services/passport.py) quando
+        disponível — usa coeficientes aprendidos de dados longitudinais.
+        """
 
         baseline = max(self.rmssd_ms, 1.0)
         scale = np.clip(1 - (baseline / 100.0), 0.0, 1.0)
