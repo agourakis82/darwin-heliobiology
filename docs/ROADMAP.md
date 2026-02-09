@@ -15,7 +15,7 @@
 
 ## Sprint S2 — Atlas, Passaporte e Metaanálise (6 dias)
 - [x] Atlas temporal de assinaturas geomagnéticas
-- [ ] Passaporte psico-geomagnético (personalização)
+- [x] Passaporte psico-geomagnético (personalização)
 - [x] Motor `Aletheia` para metaanálise automatizada
 - [x] Pipeline TFT/PatchTST com features HelioMind + HRV
 - [x] Rodar PCMCI+ com priors Helio ↔ Mood

@@ -82,6 +82,7 @@ Public wearables (WESAD etc.) → HRV extraction (features/hrv.py)
 - **`services/kairos_forecaster.py`** — Hybrid forecaster (exponential smoothing + Bayesian regression)
 - **`services/aletheia_validator.py`** — Validates correlations + DerSimonian-Laird random-effects meta-analysis
 - **`services/causal_discovery.py`** — PCMCI+ causal discovery with heliobiological priors via tigramite
+- **`services/passport.py`** — Psycho-geomagnetic passport: individual sensitivity calibration via cross-correlation
 - **`datasets/`** — Public dataset catalog, WESAD ingestion, NOAA raw cache, OMNI2 hourly, WHO mortality
 
 ### Key Domain Entities (from ONTOLOGY.md)
@@ -139,6 +140,9 @@ poetry run python scripts/run_neural_forecast.py --solar-input data/processed/he
 
 # Run PCMCI+ causal discovery
 poetry run python scripts/run_causal_discovery.py --solar-input data/raw/nasa_omni/omni2_hourly.parquet --hrv-input data/processed/hrv_mood_wesad.csv --tau-max 48 --use-priors --output data/processed/causal_links.parquet
+
+# Build psycho-geomagnetic passport for a subject
+poetry run python scripts/build_passport.py --hrv-input data/processed/hrv_mood_wesad.csv --solar-input data/raw/nasa_omni/omni2_hourly.parquet --subject-id S2 --output data/processed/passport/S2_passport.parquet
 ```
 
 ## Agent Autonomy
