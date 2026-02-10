@@ -99,10 +99,11 @@ def compute_helio_mind_index(
         variability=_normalize_variability(kp_values, divisor=c.variability_divisor),
     )
 
-    # Pesos EXPLORATÓRIOS (grau D) — a ordenação relativa (Kp > Dst > Bz) reflete
-    # a frequência de uso na literatura epidemiológica, mas os valores numéricos
-    # não derivam de estudo empírico.  Calibrar via regressão sobre desfechos
-    # clínicos antes de publicar.  Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.1.
+    # Pesos default (grau C quando calibrados via WHO, grau D quando arbitrários).
+    # A ordenação relativa (Kp > Dst > Bz) reflete a frequência de uso na
+    # literatura epidemiológica.  Para pesos calibrados via regressão em painel
+    # WHO (mortalidade × atividade solar), usar ``who_calibration.py``.
+    # Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.1.
     score = float(
         np.clip(
             0.35 * components.kp_activity
