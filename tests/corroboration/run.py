@@ -14,9 +14,8 @@ from __future__ import annotations
 import math
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -66,8 +65,8 @@ def tok(s: str) -> float | None:
     return float(s)
 
 
-def read_blocks(path: Path) -> Dict[str, List[List[str]]]:
-    blocks: Dict[str, List[List[str]]] = {}
+def read_blocks(path: Path) -> dict[str, list[list[str]]]:
+    blocks: dict[str, list[list[str]]] = {}
     cur = None
     for line in path.read_text().splitlines():
         if line.startswith("begin "):
@@ -80,7 +79,7 @@ def read_blocks(path: Path) -> Dict[str, List[List[str]]]:
     return blocks
 
 
-ROWS: List[Tuple[str, str, str, str, str, str]] = []  # case, quantity, sounio, python, rel, status
+ROWS: list[tuple[str, str, str, str, str, str]] = []  # case, quantity, sounio, python, rel, status
 
 
 def rel(a: float | None, b: float | None) -> float:
@@ -109,13 +108,13 @@ def addi(case: str, q: str, s: int, p: int) -> None:
 # ---------------------------------------------------------------- helio ----------------------
 def helio_case(path: Path) -> SolarObservation:
     now = 0
-    kp: List[SolarIndex] = []
-    dst: List[SolarIndex] = []
-    imf: List[IMFVector] = []
-    wind: List[SolarWindSample] = []
+    kp: list[SolarIndex] = []
+    dst: list[SolarIndex] = []
+    imf: list[IMFVector] = []
+    wind: list[SolarWindSample] = []
 
     def ts(sec: int) -> datetime:
-        return datetime.fromtimestamp(sec, tz=timezone.utc)
+        return datetime.fromtimestamp(sec, tz=UTC)
 
     def val(s: str) -> float:
         return math.nan if s == "NA" else float(s)
@@ -146,7 +145,7 @@ ALERT_BITS = [
 ]
 
 
-def helio(blocks: Dict[str, List[List[str]]]) -> None:
+def helio(blocks: dict[str, list[list[str]]]) -> None:
     for header, lines in blocks.items():
         if not header.startswith("helio "):
             continue
@@ -180,11 +179,11 @@ def helio(blocks: Dict[str, List[List[str]]]) -> None:
 
 
 # ---------------------------------------------------------------- calib / atlas -----------------
-def load_omni(files: List[Path]) -> pd.DataFrame:
+def load_omni(files: list[Path]) -> pd.DataFrame:
     return pd.concat([_parse_omni2_text(f.read_text()) for f in files], ignore_index=True)
 
 
-def calib(blocks: Dict[str, List[List[str]]]) -> None:
+def calib(blocks: dict[str, list[list[str]]]) -> None:
     for header, lines in blocks.items():
         if not header.startswith("calib "):
             continue
@@ -210,7 +209,7 @@ def calib(blocks: Dict[str, List[List[str]]]) -> None:
                 add(case, f"{q} {k}", tok(got[(q, k)]), py, 1e-9)
 
 
-def atlas(blocks: Dict[str, List[List[str]]]) -> None:
+def atlas(blocks: dict[str, list[list[str]]]) -> None:
     for header, lines in blocks.items():
         if not header.startswith("atlas "):
             continue
@@ -253,7 +252,7 @@ def atlas(blocks: Dict[str, List[List[str]]]) -> None:
 
 
 # ---------------------------------------------------------------- meta ---------------------------
-def meta(blocks: Dict[str, List[List[str]]]) -> None:
+def meta(blocks: dict[str, list[list[str]]]) -> None:
     for header, lines in blocks.items():
         if not header.startswith("meta "):
             continue
@@ -279,8 +278,8 @@ def meta(blocks: Dict[str, List[List[str]]]) -> None:
 
 
 # ---------------------------------------------------------------- passport -----------------------
-def read_case_arrays(path: Path) -> Tuple[np.ndarray, np.ndarray, int]:
-    arrs: Dict[str, List[float]] = {"X": [], "Y": []}
+def read_case_arrays(path: Path) -> tuple[np.ndarray, np.ndarray, int]:
+    arrs: dict[str, list[float]] = {"X": [], "Y": []}
     cur = ""
     lag = 0
     for ln in path.read_text().splitlines():
@@ -297,7 +296,7 @@ def read_case_arrays(path: Path) -> Tuple[np.ndarray, np.ndarray, int]:
     return np.asarray(arrs["X"]), np.asarray(arrs["Y"]), lag
 
 
-def passport(blocks: Dict[str, List[List[str]]]) -> None:
+def passport(blocks: dict[str, list[list[str]]]) -> None:
     for header, lines in blocks.items():
         if not header.startswith("passport "):
             continue
