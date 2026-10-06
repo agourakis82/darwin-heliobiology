@@ -1,0 +1,130 @@
+// sio/helio_index.sio — HelioMind Index (spec §4). Implementacao PRINCIPAL.
+//
+// Janela de 12 h POR TEMPO (t_end - 43200 < t <= t_end). Componentes em [0,1]; ausente
+// (sem amostra valida na janela) fica ausente e torna o score ausente (class 3): nunca 0.
+// Desvio-padrao amostral (ddof=1) por Welford (o gemeo usa duas passadas).
+//
+// Constantes calibradas (docs/SCIENTIFIC_FOUNDATIONS.md §5): Kp/9, |Dst|/78, Bz sul/8.7,
+// pressao dinamica 1.6726e-6*n*v^2 / 7.30 nPa, std(Kp, ddof=1)/1.57.
+// Pesos 0.35/0.25/0.20/0.15/0.05.
+
+use num::{sqrt_f64, clip01, max_f64, min_f64}
+use helio_case::{Ser, HelioOut, ser_t, ser_v, ser_ok}
+
+pub fn window_secs() -> i64 { 43200 }
+
+// maior t entre TODAS as amostras (inclusive as de valor ausente); sem amostras, `now`.
+fn latest_t(kp: &Ser, dst: &Ser, bz: &Ser, wn: &Ser, now: i64) -> i64 with Mut, Panic, Div {
+    var have = false
+    var best: i64 = 0
+    var i: i64 = 0
+    while i < kp.n { let t = ser_t(kp, i); if !have || t > best { best = t; have = true }; i = i + 1 }
+    i = 0
+    while i < dst.n { let t = ser_t(dst, i); if !have || t > best { best = t; have = true }; i = i + 1 }
+    i = 0
+    while i < bz.n { let t = ser_t(bz, i); if !have || t > best { best = t; have = true }; i = i + 1 }
+    i = 0
+    while i < wn.n { let t = ser_t(wn, i); if !have || t > best { best = t; have = true }; i = i + 1 }
+    if have { best } else { now }
+}
+
+pub fn helio_compute(kp: &Ser, dst: &Ser, bz: &Ser, wn: &Ser, wv: &Ser, now: i64, out: &!HelioOut) with Mut, Panic, Div {
+    let t_end = latest_t(kp, dst, bz, wn, now)
+    let cutoff = t_end - window_secs()
+    out.t_end = t_end
+
+    // ---- Kp: media e Welford (ddof=1) sobre as amostras validas da janela
+    var nk: i64 = 0
+    var ksum: f64 = 0.0
+    var wmean: f64 = 0.0
+    var wm2: f64 = 0.0
+    var i: i64 = 0
+    while i < kp.n {
+        if ser_t(kp, i) > cutoff && ser_ok(kp, i) == 1 {
+            let x = ser_v(kp, i)
+            nk = nk + 1
+            ksum = ksum + x
+            let delta = x - wmean
+            wmean = wmean + delta / (nk as f64)
+            wm2 = wm2 + delta * (x - wmean)
+        }
+        i = i + 1
+    }
+    // ---- Dst: minimo da janela
+    var nd: i64 = 0
+    var dmin: f64 = 0.0
+    i = 0
+    while i < dst.n {
+        if ser_t(dst, i) > cutoff && ser_ok(dst, i) == 1 {
+            let x = ser_v(dst, i)
+            if nd == 0 || x < dmin { dmin = x }
+            nd = nd + 1
+        }
+        i = i + 1
+    }
+    // ---- Bz sul: media de max(-Bz, 0)
+    var nb: i64 = 0
+    var bsum: f64 = 0.0
+    i = 0
+    while i < bz.n {
+        if ser_t(bz, i) > cutoff && ser_ok(bz, i) == 1 {
+            let x = ser_v(bz, i)
+            var south = 0.0 - x
+            if south < 0.0 { south = 0.0 }
+            bsum = bsum + south
+            nb = nb + 1
+        }
+        i = i + 1
+    }
+    // ---- pressao dinamica [nPa]: amostra vale se n E v validos
+    var nw: i64 = 0
+    var psum: f64 = 0.0
+    i = 0
+    while i < wn.n {
+        if ser_t(wn, i) > cutoff && ser_ok(wn, i) == 1 && ser_ok(wv, i) == 1 {
+            let dn = ser_v(wn, i)
+            let vv = ser_v(wv, i)
+            psum = psum + 1.6726e-6 * dn * (vv * vv)
+            nw = nw + 1
+        }
+        i = i + 1
+    }
+    out.nwin[0] = nk
+    out.nwin[1] = nd
+    out.nwin[2] = nb
+    out.nwin[3] = nw
+
+    var c: i64 = 0
+    while c < 6 { out.okc[c as usize] = 0; out.val[c as usize] = 0.0; c = c + 1 }
+    if nk > 0 { out.okc[0] = 1; out.val[0] = clip01((ksum / (nk as f64)) / 9.0) }
+    if nd > 0 {
+        var storm = 0.0 - dmin
+        if dmin > 0.0 { storm = 0.0 }          // |min(min Dst, 0)|
+        out.okc[1] = 1
+        out.val[1] = clip01(storm / 78.0)
+    }
+    if nb > 0 { out.okc[2] = 1; out.val[2] = clip01((bsum / (nb as f64)) / 8.7) }
+    if nw > 0 { out.okc[3] = 1; out.val[3] = clip01((psum / (nw as f64)) / 7.30) }
+    if nk >= 2 {
+        out.okc[4] = 1
+        out.val[4] = clip01(sqrt_f64(wm2 / ((nk - 1) as f64)) / 1.57)
+    }
+
+    // ---- score estrito
+    var alerts: i64 = 0
+    if out.okc[0] == 1 && out.val[0] >= 0.7 { alerts = alerts | 1 }
+    if out.okc[1] == 1 && out.val[1] >= 0.6 { alerts = alerts | 2 }
+    if out.okc[2] == 1 && out.val[2] >= 0.5 { alerts = alerts | 4 }
+    if out.okc[3] == 1 && out.val[3] >= 0.5 { alerts = alerts | 8 }
+    if out.okc[4] == 1 && out.val[4] >= 0.6 { alerts = alerts | 16 }
+    out.alerts = alerts
+    if out.okc[0] == 1 && out.okc[1] == 1 && out.okc[2] == 1 && out.okc[3] == 1 && out.okc[4] == 1 {
+        let s = 0.35 * out.val[0] + 0.25 * out.val[1] + 0.20 * out.val[2] + 0.15 * out.val[3] + 0.05 * out.val[4]
+        let sc = clip01(s)
+        out.okc[5] = 1
+        out.val[5] = sc
+        if sc < 0.33 { out.cls = 0 } else { if sc < 0.66 { out.cls = 1 } else { out.cls = 2 } }
+    } else {
+        out.cls = 3
+    }
+}

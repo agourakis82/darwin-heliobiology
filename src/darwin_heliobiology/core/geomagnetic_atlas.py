@@ -121,7 +121,7 @@ def build_geomagnetic_atlas(
                 storm_hours=storm_hours,
                 min_dst=float(dst.min()) if not dst.empty else nan,
                 bz_southward_fraction=bz_south,
-                valid_hours=int(len(kp)),
+                valid_hours=len(kp),
             )
         )
 

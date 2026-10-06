@@ -1,0 +1,12 @@
+fn mk(y: f64, u: f64) -> Knowledge<f64> with Mut, Div, Panic, Alloc, Epistemic {
+    let k: Knowledge<f64> = measure(y, uncertainty: u)
+    k
+}
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc, Epistemic {
+    let k = mk(0.25, 0.05)
+    print_f64(k.value); print("\n")
+    let v = k.value
+    print_f64(variance_of(v)); print("\n")
+    print_f64(variance_of(k)); print("\n")
+    return 0
+}

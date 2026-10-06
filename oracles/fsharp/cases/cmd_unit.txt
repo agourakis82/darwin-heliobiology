@@ -1,0 +1,6 @@
+helio oracles/fsharp/cases/helio_window.txt   # comment
+helio oracles/fsharp/cases/helio_na.txt
+helio oracles/fsharp/cases/helio_var2.txt
+helio oracles/fsharp/cases/helio_empty.txt
+meta oracles/fsharp/cases/meta_k3.txt
+calib oracles/fsharp/cases/omni_tiny.dat

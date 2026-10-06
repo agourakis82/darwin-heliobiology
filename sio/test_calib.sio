@@ -1,0 +1,69 @@
+// Testes da calibracao (nucleo + gemeo) sobre tests/fixtures/omni2/atlas.dat; valores conferidos a mao.
+use num::{sqrt_f64}
+use omni::{Omni, omni_new, omni_append_file, omni_count_lines}
+use calib_case::{CalibOut, calib_out_new, calib_print, suggested}
+use calibration::{calib_run, heapsort, quantile_sorted}
+use twin::calib_twin::{calib_run_twin}
+
+fn near(a: f64, b: f64) -> bool {
+    let d = if a > b { a - b } else { b - a }
+    let m = if a > b { a } else { b }
+    d <= 1.0e-12 * (if m > 1.0e-6 { m } else { 1.0e-6 })
+}
+
+fn check(o: &CalibOut) with Mut, Div, Panic {
+    assert(o.n_records == 8)
+    // kp: [5.0 4.9 6.7 2.0 1.0 9.0]
+    assert(o.count[0] == 6)
+    assert(near(o.mean[0], 28.6 / 6.0))
+    assert(near(o.q[0], 4.95))
+    assert(near(o.q[1], 7.85))
+    assert(near(o.q[2], 8.425))
+    assert(near(o.q[3], 8.885))
+    assert(suggested(o, 0) == 9.0)
+    // dst_abs: [10 30 5 0 0 120]
+    assert(o.count[1] == 6)
+    assert(near(o.q[4], 7.5))
+    assert(near(o.q[5], 75.0))
+    assert(near(o.q[7], 115.5))
+    assert(near(suggested(o, 1), 115.5))
+    // bz_south: [1 0 3 0 0.5 0]
+    assert(o.count[2] == 6)
+    assert(near(o.q[8], 0.25))
+    // pressao: 7 amostras iguais a 1.6726e-6*5*160000
+    assert(o.count[3] == 7)
+    assert(near(o.q[15], 1.6726e-6 * 5.0 * 160000.0))
+    // kp_var: [0.1/sqrt2, 0.1/sqrt2, 4.7/sqrt2]  (as outras janelas tem < 2 Kp validos)
+    assert(o.count[4] == 3)
+    assert(near(o.q[16], 0.1 / sqrt_f64(2.0)))
+    // p99: n = 3, h = 0.99 * 2 = 1.98, lo = 1  ->  x1 + 0.98 * (x2 - x1)
+    let lo_v = 0.1 / sqrt_f64(2.0)
+    let hi_v = 4.7 / sqrt_f64(2.0)
+    assert(near(o.q[19], lo_v + 0.98 * (hi_v - lo_v)))
+}
+
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    // heapsort + quantil sobre vetor conhecido
+    let a = heap_alloc(8 * 6) as *mut f64
+    write_f64(a, 0, 9.0); write_f64(a, 1, 1.0); write_f64(a, 2, 5.0)
+    write_f64(a, 3, 2.0); write_f64(a, 4, 7.0); write_f64(a, 5, 3.0)
+    heapsort(a, 6)
+    assert(read_f64(a, 0) == 1.0 && read_f64(a, 1) == 2.0 && read_f64(a, 2) == 3.0)
+    assert(read_f64(a, 3) == 5.0 && read_f64(a, 4) == 7.0 && read_f64(a, 5) == 9.0)
+    assert(near(quantile_sorted(a, 6, 0.5), 4.0))
+    assert(quantile_sorted(a, 6, 1.0) == 9.0)
+    assert(quantile_sorted(a, 6, 0.0) == 1.0)
+
+    let path = "tests/fixtures/omni2/atlas.dat"
+    var o = omni_new(omni_count_lines(path))
+    omni_append_file(&!o, path)
+    var c1 = calib_out_new()
+    calib_run(&o, &!c1)
+    check(&c1)
+    var c2 = calib_out_new()
+    calib_run_twin(&o, &!c2)
+    check(&c2)
+    calib_print(&c1)
+    print("CALIB_CASES_OK\n")
+    return 0
+}

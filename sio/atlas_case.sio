@@ -1,0 +1,85 @@
+// sio/atlas_case.sio — resultado e impressao do Atlas (compartilhado pelo nucleo e pelo gemeo).
+//
+// Resolucao: 0 daily, 1 monthly, 2 quarterly. Rotulos: YYYY-MM-DD | YYYY-MM | YYYY-Qq.
+// Colunas f64 por periodo: 0 mean_kp, 1 mean_dst, 2 mean_bz, 3 min_dst, 4 bz_south_frac.
+// Colunas i64: 0 ano, 1 sub (mes / trimestre), 2 dia, 3 storm_hours, 4 valid_hours, 5 mascara
+// de validade (bit c = coluna f64 c existe).
+
+use num::{print_tok_opt}
+
+pub struct AtlasRes {
+    pub res: i64,
+    pub n: i64,
+    pub cap: i64,
+    pub f: i64,
+    pub k: i64,
+}
+
+pub fn atlas_res_new(res: i64, cap: i64) -> AtlasRes with Alloc, Mut, Panic, Div {
+    var c = cap
+    if c < 1 { c = 1 }
+    let f = heap_alloc(8 * 5 * c) as *mut f64
+    let k = heap_alloc(8 * 6 * c) as *mut i64
+    AtlasRes { res: res, n: 0, cap: c, f: f as i64, k: k as i64 }
+}
+
+pub fn atlas_f(r: &AtlasRes, col: i64, i: i64) -> f64 with Mut, Panic, Div {
+    read_f64(r.f as *mut f64, col * r.cap + i)
+}
+
+pub fn atlas_k(r: &AtlasRes, col: i64, i: i64) -> i64 with Mut, Panic, Div {
+    read_i64(r.k as *mut i64, col * r.cap + i)
+}
+
+pub fn atlas_push(r: &!AtlasRes, y: i64, sub: i64, d: i64, storm: i64, valid: i64, mask: i64,
+                  mk: f64, md: f64, mb: f64, mind: f64, bfr: f64) with Mut, Panic, Div {
+    if r.n >= r.cap { return }
+    let i = r.n
+    let fp = r.f as *mut f64
+    let kp = r.k as *mut i64
+    write_f64(fp, 0 * r.cap + i, mk)
+    write_f64(fp, 1 * r.cap + i, md)
+    write_f64(fp, 2 * r.cap + i, mb)
+    write_f64(fp, 3 * r.cap + i, mind)
+    write_f64(fp, 4 * r.cap + i, bfr)
+    write_i64(kp, 0 * r.cap + i, y)
+    write_i64(kp, 1 * r.cap + i, sub)
+    write_i64(kp, 2 * r.cap + i, d)
+    write_i64(kp, 3 * r.cap + i, storm)
+    write_i64(kp, 4 * r.cap + i, valid)
+    write_i64(kp, 5 * r.cap + i, mask)
+    r.n = r.n + 1
+}
+
+fn print_pad(v: i64, w: i64) with IO, Mut, Panic, Div {
+    var p: i64 = 1
+    var k: i64 = 1
+    while k < w { p = p * 10; k = k + 1 }
+    var x = p
+    while x > 1 && v < x { print("0"); x = x / 10 }
+    print_int(v)
+}
+
+pub fn atlas_print(r: &AtlasRes) with IO, Mut, Panic, Div {
+    print("n_periods "); print_int(r.n); print("\n")
+    var i: i64 = 0
+    while i < r.n {
+        print("period ")
+        print_pad(atlas_k(r, 0, i), 4)   // pad de 4 digitos: (anos >= 1000 imprimem direto)
+        if r.res == 2 {
+            print("-Q"); print_int(atlas_k(r, 1, i))
+        } else {
+            print("-"); print_pad(atlas_k(r, 1, i), 2)
+            if r.res == 0 { print("-"); print_pad(atlas_k(r, 2, i), 2) }
+        }
+        let mask = atlas_k(r, 5, i)
+        var c: i64 = 0
+        while c < 3 { print(" "); print_tok_opt((mask >> c) & 1, atlas_f(r, c, i)); c = c + 1 }
+        print(" "); print_int(atlas_k(r, 3, i))
+        print(" "); print_int(atlas_k(r, 4, i))
+        print(" "); print_tok_opt((mask >> 3) & 1, atlas_f(r, 3, i))
+        print(" "); print_tok_opt((mask >> 4) & 1, atlas_f(r, 4, i))
+        print("\n")
+        i = i + 1
+    }
+}

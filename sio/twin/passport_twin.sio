@@ -1,0 +1,158 @@
+// sio/twin/passport_twin.sio — GEMEO do passaporte (ADR-009 §1).
+//
+// Diferencas deliberadas em relacao a sio/passport.sio:
+//   * correlacao por PRODUTO DE Z-SCORES: r = (1/m) * sum(zx * zy), com z = (v - media)/desvio
+//     populacional do segmento, em vez de somas centradas sxy/sqrt(sxx*syy);
+//   * a permutacao dos blocos e feita por indice (calcula, para cada posicao de saida, de qual
+//     indice de y ela vem), em vez de copiar blocos;
+//   * SplitMix64 reescrito aqui (mesma especificacao, outro codigo), quantis por ordenacao por
+//     insercao.
+// Limite documentado: o PRNG e o MESMO algoritmo do nucleo; um erro de especificacao do PRNG
+// seria compartilhado. Isso e coberto pela referencia Futhark (oracles/futhark), que reproduz o
+// fluxo SplitMix64 e, separadamente, a DISTRIBUICAO nula com outro gerador.
+
+use num::{sqrt_f64}
+use passport_case::{PassCase, PassOut}
+
+// SplitMix64 em i64 (u64 tem `>>` aritmetico em parametros: docs/divergences/D06). O
+// deslocamento logico aqui e feito por uma via DIFERENTE da do nucleo: desloca 1 bit com
+// mascara e depois aritmeticamente o restante (que ja e nao negativo).
+fn sm_next_state(s: i64) -> i64 { s + (-7046029254386353131) }
+
+fn shr_logical(x: i64, k: i64) -> i64 {
+    let first = (x >> 1) & 9223372036854775807
+    first >> (k - 1)
+}
+
+fn sm_mix(s: i64) -> i64 {
+    var z = s
+    z = (z ^ shr_logical(z, 30)) * (-4658895280553007687)
+    z = (z ^ shr_logical(z, 27)) * (-7723592293110705685)
+    z ^ shr_logical(z, 31)
+}
+
+fn zr(x: *mut f64, y: *mut f64, m: i64, lag: i64, ok: &!i64) -> f64 with Mut, Panic, Div {
+    *ok = 0
+    if m < 10 { return 0.0 }
+    var mx: f64 = 0.0
+    var my: f64 = 0.0
+    var i: i64 = 0
+    while i < m { mx = mx + read_f64(x, i); my = my + read_f64(y, i + lag); i = i + 1 }
+    mx = mx / (m as f64)
+    my = my / (m as f64)
+    var vx: f64 = 0.0
+    var vy: f64 = 0.0
+    i = 0
+    while i < m {
+        let a = read_f64(x, i) - mx
+        let b = read_f64(y, i + lag) - my
+        vx = vx + a * a
+        vy = vy + b * b
+        i = i + 1
+    }
+    let sx = sqrt_f64(vx / (m as f64))
+    let sy = sqrt_f64(vy / (m as f64))
+    if sx < 1.0e-12 || sy < 1.0e-12 { return 0.0 }
+    var acc: f64 = 0.0
+    i = 0
+    while i < m {
+        let zx = (read_f64(x, i) - mx) / sx
+        let zy = (read_f64(y, i + lag) - my) / sy
+        acc = acc + zx * zy
+        i = i + 1
+    }
+    *ok = 1
+    acc / (m as f64)
+}
+
+fn tstat(x: *mut f64, y: *mut f64, n: i64, lag_max: i64, lag_out: &!i64) -> f64 with Mut, Panic, Div {
+    var best: f64 = 0.0
+    var blag: i64 = 0
+    var have = false
+    var lag: i64 = 0
+    while lag <= lag_max {
+        var ok: i64 = 0
+        let r = zr(x, y, n - lag, lag, &!ok)
+        if ok == 1 {
+            let a = if r < 0.0 { 0.0 - r } else { r }
+            if !have || a > best { best = a; blag = lag; have = true }
+        }
+        lag = lag + 1
+    }
+    *lag_out = blag
+    best
+}
+
+pub fn passport_run_twin(c: &PassCase, out: &!PassOut) with Mut, Panic, Div, Alloc {
+    let x = c.x as *mut f64
+    let y = c.y as *mut f64
+    var lag0: i64 = 0
+    let tobs = tstat(x, y, c.n, c.lag_max, &!lag0)
+    out.t_obs = tobs
+    out.lag_obs = lag0
+    let nulls = heap_alloc(8 * (c.b + 1)) as *mut f64
+    let yp = heap_alloc(8 * (c.n + 1)) as *mut f64
+    let k = (c.n + 23) / 24
+    let order = heap_alloc(8 * (k + 1)) as *mut i64
+    var hits: i64 = 0
+    var b: i64 = 0
+    while b < c.b {
+        // fluxo da permutacao b
+        var s: i64 = c.seed ^ ((b + 1) * (-7046029254386353131))
+        var i: i64 = 0
+        while i < k { write_i64(order, i, i); i = i + 1 }
+        i = k - 1
+        while i >= 1 {
+            s = sm_next_state(s)
+            let r = sm_mix(s)
+            let j = shr_logical(r, 11) % (i + 1)
+            let t = read_i64(order, i)
+            write_i64(order, i, read_i64(order, j))
+            write_i64(order, j, t)
+            i = i - 1
+        }
+        // posicao de saida -> indice de origem: blocos na ordem `order`, o ultimo pode ser curto
+        var pos: i64 = 0
+        var bi: i64 = 0
+        while bi < k {
+            let a = read_i64(order, bi) * 24
+            var len = 24
+            if a + 24 > c.n { len = c.n - a }
+            var q: i64 = 0
+            while q < len { write_f64(yp, pos + q, read_f64(y, a + q)); q = q + 1 }
+            pos = pos + len
+            bi = bi + 1
+        }
+        var lb: i64 = 0
+        let tb = tstat(x, yp, c.n, c.lag_max, &!lb)
+        write_f64(nulls, b, tb)
+        if tb >= tobs - 1.0e-12 { hits = hits + 1 }
+        b = b + 1
+    }
+    out.nulls = nulls as i64
+    out.b = c.b
+    out.p = ((1 + hits) as f64) / ((c.b + 1) as f64)
+    // quantis: ordenacao por insercao de uma copia
+    let tmp = heap_alloc(8 * (c.b + 1)) as *mut f64
+    var i: i64 = 0
+    while i < c.b {
+        let v = read_f64(nulls, i)
+        var j = i - 1
+        while j >= 0 && read_f64(tmp, j) > v { write_f64(tmp, j + 1, read_f64(tmp, j)); j = j - 1 }
+        write_f64(tmp, j + 1, v)
+        i = i + 1
+    }
+    var qi: i64 = 0
+    while qi < 4 {
+        var q = 0.5
+        if qi == 1 { q = 0.9 }
+        if qi == 2 { q = 0.95 }
+        if qi == 3 { q = 0.99 }
+        let h = q * ((c.b - 1) as f64)
+        let lo = h as i64
+        var val = read_f64(tmp, lo)
+        if lo < c.b - 1 { val = val + (h - (lo as f64)) * (read_f64(tmp, lo + 1) - val) }
+        out.q[qi as usize] = val
+        qi = qi + 1
+    }
+}

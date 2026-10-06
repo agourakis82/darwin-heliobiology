@@ -1,0 +1,22 @@
+// Madaros x lean_single: variancia GUM de primeira ordem dentro de UMA funcao.
+// Madaros: var=0.005902 (= 1/W, correto). lean_single: var=0.000000 (perdida em silencio).
+fn pooled3(ya: f64, yb: f64, yc: f64, ua: f64, ub: f64, uc: f64) -> f64 with IO, Mut, Div, Panic, Alloc, Epistemic {
+    let wa = 1.0 / (ua * ua)
+    let wb = 1.0 / (ub * ub)
+    let wc = 1.0 / (uc * uc)
+    let w = wa + wb + wc
+    let ka: Knowledge<f64> = measure(ya, uncertainty: ua)
+    let kb: Knowledge<f64> = measure(yb, uncertainty: ub)
+    let kc: Knowledge<f64> = measure(yc, uncertainty: uc)
+    let a = ka.value
+    let b = kb.value
+    let c = kc.value
+    let mu = (a * wa + b * wb + c * wc) / w
+    print("var="); print_f64(variance_of(mu)); print("\n")
+    mu
+}
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc, Epistemic {
+    let m = pooled3(0.30, 0.10, 0.25, 0.1, 0.2, 0.15)
+    print_f64(m); print("\n")
+    return 0
+}

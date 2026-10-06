@@ -1,0 +1,1 @@
+Madaros: struct de usuário chamado Box sombreia o builtin em silêncio e o ELF morre com SIGSEGV

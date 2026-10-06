@@ -1,0 +1,136 @@
+// sio/calibration.sio — calibracao empirica (spec §6). Implementacao PRINCIPAL.
+//
+// p99 por interpolacao linear entre ordens (h = q*(N-1)) sobre os valores validos de cada
+// serie, apos ORDENACAO COMPLETA (heapsort). O gemeo usa selecao (quickselect).
+// kp_var: desvio-padrao amostral (Welford) dos Kp validos da janela (t_i - 12 h, t_i].
+// Premissa: registros em ordem cronologica crescente (OMNI); a varredura da janela anda
+// para tras a partir de i e para no primeiro t_j <= t_i - 43200.
+
+use num::{sqrt_f64}
+use omni::{Omni, omni_t, omni_valid, omni_get, col_bz, col_n, col_v, col_kp, col_dst}
+use calib_case::{CalibOut}
+
+fn sift_down(a: *mut f64, start: i64, end: i64) with Mut, Panic, Div {
+    var root = start
+    while true {
+        var child = 2 * root + 1
+        if child > end { break }
+        if child + 1 <= end && read_f64(a, child) < read_f64(a, child + 1) { child = child + 1 }
+        if read_f64(a, root) < read_f64(a, child) {
+            let tmp = read_f64(a, root)
+            write_f64(a, root, read_f64(a, child))
+            write_f64(a, child, tmp)
+            root = child
+        } else {
+            break
+        }
+    }
+}
+
+// heapsort crescente de a[0..n)
+pub fn heapsort(a: *mut f64, n: i64) with Mut, Panic, Div {
+    if n < 2 { return }
+    var start = (n - 2) / 2
+    while start >= 0 {
+        sift_down(a, start, n - 1)
+        start = start - 1
+    }
+    var end = n - 1
+    while end > 0 {
+        let tmp = read_f64(a, end)
+        write_f64(a, end, read_f64(a, 0))
+        write_f64(a, 0, tmp)
+        end = end - 1
+        sift_down(a, 0, end)
+    }
+}
+
+// quantil por interpolacao linear (spec §6) sobre vetor JA ORDENADO
+pub fn quantile_sorted(a: *mut f64, n: i64, q: f64) -> f64 with Mut, Panic, Div {
+    let h = q * ((n - 1) as f64)
+    let lo = h as i64                 // h >= 0: truncar = floor
+    if lo >= n - 1 { return read_f64(a, n - 1) }
+    let frac = h - (lo as f64)
+    let x0 = read_f64(a, lo)
+    x0 + frac * (read_f64(a, lo + 1) - x0)
+}
+
+// Preenche buf com os valores validos da serie s; devolve a contagem.
+fn fill_series(o: &Omni, s: i64, buf: *mut f64) -> i64 with Mut, Panic, Div {
+    var k: i64 = 0
+    var i: i64 = 0
+    while i < o.n {
+        if s == 0 {
+            if omni_valid(o, col_kp(), i) { write_f64(buf, k, omni_get(o, col_kp(), i)); k = k + 1 }
+        }
+        if s == 1 {
+            if omni_valid(o, col_dst(), i) {
+                var d = omni_get(o, col_dst(), i)
+                if d > 0.0 { d = 0.0 }
+                write_f64(buf, k, 0.0 - d)          // |min(Dst,0)|
+                k = k + 1
+            }
+        }
+        if s == 2 {
+            if omni_valid(o, col_bz(), i) {
+                var b = 0.0 - omni_get(o, col_bz(), i)
+                if b < 0.0 { b = 0.0 }
+                write_f64(buf, k, b)
+                k = k + 1
+            }
+        }
+        if s == 3 {
+            if omni_valid(o, col_n(), i) && omni_valid(o, col_v(), i) {
+                let dn = omni_get(o, col_n(), i)
+                let vv = omni_get(o, col_v(), i)
+                write_f64(buf, k, 1.6726e-6 * dn * (vv * vv))
+                k = k + 1
+            }
+        }
+        if s == 4 {
+            let cutoff = omni_t(o, i) - 43200
+            var cnt: i64 = 0
+            var mean: f64 = 0.0
+            var m2: f64 = 0.0
+            var j = i
+            while j >= 0 && omni_t(o, j) > cutoff {
+                if omni_valid(o, col_kp(), j) {
+                    let x = omni_get(o, col_kp(), j)
+                    cnt = cnt + 1
+                    let delta = x - mean
+                    mean = mean + delta / (cnt as f64)
+                    m2 = m2 + delta * (x - mean)
+                }
+                j = j - 1
+            }
+            if cnt >= 2 {
+                write_f64(buf, k, sqrt_f64(m2 / ((cnt - 1) as f64)))
+                k = k + 1
+            }
+        }
+        i = i + 1
+    }
+    k
+}
+
+pub fn calib_run(o: &Omni, out: &!CalibOut) with Mut, Panic, Div, Alloc {
+    out.n_records = o.n
+    let buf = heap_alloc(8 * (o.n + 1)) as *mut f64
+    var s: i64 = 0
+    while s < 5 {
+        let cnt = fill_series(o, s, buf)
+        out.count[s as usize] = cnt
+        if cnt > 0 {
+            var sum: f64 = 0.0
+            var i: i64 = 0
+            while i < cnt { sum = sum + read_f64(buf, i); i = i + 1 }
+            out.mean[s as usize] = sum / (cnt as f64)
+            heapsort(buf, cnt)
+            out.q[(s * 4) as usize] = quantile_sorted(buf, cnt, 0.50)
+            out.q[(s * 4 + 1) as usize] = quantile_sorted(buf, cnt, 0.90)
+            out.q[(s * 4 + 2) as usize] = quantile_sorted(buf, cnt, 0.95)
+            out.q[(s * 4 + 3) as usize] = quantile_sorted(buf, cnt, 0.99)
+        }
+        s = s + 1
+    }
+}

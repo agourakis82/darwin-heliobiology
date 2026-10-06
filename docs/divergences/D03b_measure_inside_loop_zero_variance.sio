@@ -1,0 +1,24 @@
+struct Arr { y: [f64; 8], u: [f64; 8], n: i64 }
+fn pooled(a: &Arr) -> f64 with IO, Mut, Div, Panic, Alloc, Epistemic {
+    var w: f64 = 0.0
+    var i: i64 = 0
+    while i < a.n { w = w + 1.0 / (a.u[i] * a.u[i]); i = i + 1 }
+    var acc: f64 = 0.0
+    i = 0
+    while i < a.n {
+        let k: Knowledge<f64> = measure(a.y[i], uncertainty: a.u[i])
+        let v = k.value
+        acc = acc + v * (1.0 / (a.u[i] * a.u[i]))
+        i = i + 1
+    }
+    let mu = acc / w
+    print("var="); print_f64(variance_of(mu)); print("\n")
+    print("expect="); print_f64(1.0 / w); print("\n")
+    mu
+}
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc, Epistemic {
+    var a = Arr { y: [0.3, 0.1, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0], u: [0.1, 0.2, 0.15, 1.0, 1.0, 1.0, 1.0, 1.0], n: 3 }
+    let m = pooled(&a)
+    print_f64(m); print("\n")
+    return 0
+}

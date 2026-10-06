@@ -1,0 +1,122 @@
+// sio/meta.sio — DerSimonian-Laird (spec §8). Implementacao PRINCIPAL (formula de momentos).
+//
+// Efeito combinado com variancia propagada pelo GUM DENTRO DE UMA FUNCAO (`dl_pooled_gum`):
+// em Madaros a variancia de primeira ordem NAO atravessa chamadas de funcao do usuario
+// (KL-11; medido em docs/divergences/D03 e no teste test_meta.sio), entao as medicoes
+// `measure(y_i, uncertainty: sqrt(v_i + tau2))`, a combinacao
+// mu = sum(w*_i y_i) / sum(w*_i) e a leitura `variance_of(mu)` acontecem todas no mesmo corpo.
+// Como cada y_i tem incerteza total v_i + tau2 e w*_i = 1/(v_i + tau2), a propagacao de primeira
+// ordem da exatamente 1/sum(w*) = se^2. Limites declarados: (1) `measure` dentro de laco nao
+// propaga (variancia 0 em silencio, medido), entao o corpo e DESENROLADO para ate 12 estudos;
+// (2) o resultado sai como par (valor, variancia), nao como Knowledge atravessando a chamada.
+
+use num::{sqrt_f64}
+use meta_case::{MetaCase, MetaOut}
+
+pub fn meta_dl(c: &MetaCase, out: &!MetaOut) with Mut, Panic, Div {
+    let k = c.k
+    out.k = k
+    var sw: f64 = 0.0
+    var sw2: f64 = 0.0
+    var swy: f64 = 0.0
+    var i: i64 = 0
+    while i < k {
+        let w = 1.0 / c.v[i as usize]
+        sw = sw + w
+        sw2 = sw2 + w * w
+        swy = swy + w * c.y[i as usize]
+        i = i + 1
+    }
+    let yfe = swy / sw
+    var q: f64 = 0.0
+    i = 0
+    while i < k {
+        let w = 1.0 / c.v[i as usize]
+        let d = c.y[i as usize] - yfe
+        q = q + w * (d * d)
+        i = i + 1
+    }
+    let cc = sw - sw2 / sw
+    var tau2: f64 = 0.0
+    if cc > 0.0 {
+        let t = (q - ((k - 1) as f64)) / cc
+        if t > 0.0 { tau2 = t }
+    }
+    var i2: f64 = 0.0
+    if q > 0.0 {
+        let t = (q - ((k - 1) as f64)) / q
+        if t > 0.0 { i2 = t * 100.0 }
+    }
+    var sws: f64 = 0.0
+    var swsy: f64 = 0.0
+    i = 0
+    while i < k {
+        let ws = 1.0 / (c.v[i as usize] + tau2)
+        sws = sws + ws
+        swsy = swsy + ws * c.y[i as usize]
+        i = i + 1
+    }
+    let yre = swsy / sws
+    let se = sqrt_f64(1.0 / sws)
+    out.q = q
+    out.tau2 = tau2
+    out.i2 = i2
+    out.fe = yfe
+    out.re = yre
+    out.se = se
+    out.z = yre / se
+    out.lo = yre - 1.959963984540054 * se
+    out.hi = yre + 1.959963984540054 * se
+}
+
+// Resultado do GUM: valor combinado e variancia propagada (sem depender de Knowledge cruzar a funcao)
+pub struct GumOut { pub mu: f64, pub variance: f64, pub ok: i64 }
+
+// Ate 12 estudos (corpo desenrolado). tau2 vem do DL acima.
+pub fn dl_pooled_gum(c: &MetaCase, tau2: f64, g: &!GumOut) with Mut, Panic, Div, Epistemic {
+    g.ok = 0
+    g.mu = 0.0
+    g.variance = 0.0
+    if c.k > 12 || c.k < 1 { return }
+    var ws: [f64; 12] = [0.0; 12]
+    var us: [f64; 12] = [1.0; 12]
+    var ys: [f64; 12] = [0.0; 12]
+    var i: i64 = 0
+    var wsum: f64 = 0.0
+    while i < c.k {
+        let tot = c.v[i as usize] + tau2
+        ws[i as usize] = 1.0 / tot
+        us[i as usize] = sqrt_f64(tot)
+        ys[i as usize] = c.y[i as usize]
+        wsum = wsum + ws[i as usize]
+        i = i + 1
+    }
+    let k0: Knowledge<f64> = measure(ys[0], uncertainty: us[0])
+    let k1: Knowledge<f64> = measure(ys[1], uncertainty: us[1])
+    let k2: Knowledge<f64> = measure(ys[2], uncertainty: us[2])
+    let k3: Knowledge<f64> = measure(ys[3], uncertainty: us[3])
+    let k4: Knowledge<f64> = measure(ys[4], uncertainty: us[4])
+    let k5: Knowledge<f64> = measure(ys[5], uncertainty: us[5])
+    let k6: Knowledge<f64> = measure(ys[6], uncertainty: us[6])
+    let k7: Knowledge<f64> = measure(ys[7], uncertainty: us[7])
+    let k8: Knowledge<f64> = measure(ys[8], uncertainty: us[8])
+    let k9: Knowledge<f64> = measure(ys[9], uncertainty: us[9])
+    let k10: Knowledge<f64> = measure(ys[10], uncertainty: us[10])
+    let k11: Knowledge<f64> = measure(ys[11], uncertainty: us[11])
+    let a0 = k0.value
+    let a1 = k1.value
+    let a2 = k2.value
+    let a3 = k3.value
+    let a4 = k4.value
+    let a5 = k5.value
+    let a6 = k6.value
+    let a7 = k7.value
+    let a8 = k8.value
+    let a9 = k9.value
+    let a10 = k10.value
+    let a11 = k11.value
+    let mu = (a0 * ws[0] + a1 * ws[1] + a2 * ws[2] + a3 * ws[3] + a4 * ws[4] + a5 * ws[5] + a6 * ws[6] + a7 * ws[7] + a8 * ws[8] + a9 * ws[9] + a10 * ws[10] + a11 * ws[11]) / wsum
+    g.variance = variance_of(mu)
+    g.mu = mu
+    g.ok = 1
+}

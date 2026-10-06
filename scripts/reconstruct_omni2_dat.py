@@ -22,7 +22,11 @@ OUT = Path("data/raw/omni2")
 
 
 def _f(v: float, width: int, dec: int, fill: str) -> str:
-    return fill.rjust(width) if v is None or (isinstance(v, float) and math.isnan(v)) else f"{v:{width}.{dec}f}"
+    return (
+        fill.rjust(width)
+        if v is None or (isinstance(v, float) and math.isnan(v))
+        else f"{v:{width}.{dec}f}"
+    )
 
 
 def line(r: pd.Series) -> str:
@@ -31,9 +35,18 @@ def line(r: pd.Series) -> str:
     dst = None if pd.isna(r["dst_nt"]) else int(round(r["dst_nt"]))
     spd = None if pd.isna(r["speed_kms"]) else float(r["speed_kms"])
     parts = [
-        f"{ts.year:4d}", f"{ts.dayofyear:4d}", f"{ts.hour:3d}", f"{1771:5d}", "99".rjust(3), "99".rjust(3),
-        "999".rjust(4), "999".rjust(4),
-        "999.9".rjust(6), "999.9".rjust(6), "999.9".rjust(6), "999.9".rjust(6),  # 8..11
+        f"{ts.year:4d}",
+        f"{ts.dayofyear:4d}",
+        f"{ts.hour:3d}",
+        f"{1771:5d}",
+        "99".rjust(3),
+        "99".rjust(3),
+        "999".rjust(4),
+        "999".rjust(4),
+        "999.9".rjust(6),
+        "999.9".rjust(6),
+        "999.9".rjust(6),
+        "999.9".rjust(6),  # 8..11
         _f(r["bx_gsm_nt"], 6, 1, "999.9"),  # 12 Bx
         "999.9".rjust(6),  # 13 By GSE
         "999.9".rjust(6),  # 14 Bz GSE
@@ -43,16 +56,32 @@ def line(r: pd.Series) -> str:
         "9999999.".rjust(9),  # 22 T
         _f(r["proton_density_pcm3"], 6, 1, "999.9"),  # 23
         ("9999." if spd is None else f"{spd:.0f}.").rjust(6),  # 24
-        "999.9".rjust(6), "999.9".rjust(6), "9.999".rjust(6),  # 25..27
+        "999.9".rjust(6),
+        "999.9".rjust(6),
+        "9.999".rjust(6),  # 25..27
         _f(r["flow_pressure_npa"], 6, 2, "99.99"),  # 28
-        "9999999.".rjust(9), "999.9".rjust(6), "9999.".rjust(6), "999.9".rjust(6), "999.9".rjust(6),
-        "9.999".rjust(6), "999.99".rjust(7), "999.99".rjust(7), "99.9".rjust(6),  # 29..37
+        "9999999.".rjust(9),
+        "999.9".rjust(6),
+        "9999.".rjust(6),
+        "999.9".rjust(6),
+        "999.9".rjust(6),
+        "9.999".rjust(6),
+        "999.99".rjust(7),
+        "999.99".rjust(7),
+        "99.9".rjust(6),  # 29..37
         ("99" if kp10 is None else str(kp10)).rjust(3),  # 38 Kp*10
         "999".rjust(4),  # 39 R
         ("99999" if dst is None else str(dst)).rjust(6),  # 40 Dst
-        "9999".rjust(5), "999999.99".rjust(10), *["99999.99".rjust(9)] * 5,  # 41..47
-        "0".rjust(3), "999".rjust(4), "999.9".rjust(6), "999.9".rjust(6),  # 48..51
-        "99999".rjust(6), "99999".rjust(6), "999.9".rjust(5),  # 52..54
+        "9999".rjust(5),
+        "999999.99".rjust(10),
+        *["99999.99".rjust(9)] * 5,  # 41..47
+        "0".rjust(3),
+        "999".rjust(4),
+        "999.9".rjust(6),
+        "999.9".rjust(6),  # 48..51
+        "99999".rjust(6),
+        "99999".rjust(6),
+        "999.9".rjust(5),  # 52..54
     ]
     assert len(parts) == 55, len(parts)
     return " ".join(p.strip() if False else p for p in parts)
@@ -69,4 +98,6 @@ def main(src: Path) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(Path(sys.argv[1] if len(sys.argv) > 1 else "data/raw/nasa_omni/omni2_hourly.parquet")))
+    sys.exit(
+        main(Path(sys.argv[1] if len(sys.argv) > 1 else "data/raw/nasa_omni/omni2_hourly.parquet"))
+    )

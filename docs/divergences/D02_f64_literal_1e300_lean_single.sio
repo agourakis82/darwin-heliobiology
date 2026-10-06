@@ -1,0 +1,13 @@
+// Madaros x lean_single: o literal 1.0e-300 e arredondado diferente.
+// Correto (IEEE): significando 6032057205060441, expoente -997.
+// Madaros: ...441 (correto). lean_single: ...454 (13 ulps de erro).
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    var a = 1.0e-300
+    var e: i64 = 0
+    while a < 1.0 { a = a * 2.0; e = e - 1 }
+    print_int((a * 4503599627370496.0) as i64)
+    print(" ")
+    print_int(e)
+    print("\n")
+    return 0
+}

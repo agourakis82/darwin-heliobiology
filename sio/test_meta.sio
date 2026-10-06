@@ -1,0 +1,81 @@
+// Testes do DerSimonian-Laird (nucleo, gemeo matricial e GUM em uma funcao).
+use num::{sqrt_f64}
+use meta_case::{MetaCase, MetaOut, meta_case_new, meta_load, meta_out_new, meta_print}
+use meta::{meta_dl, dl_pooled_gum, GumOut}
+use twin::meta_twin::{meta_dl_twin}
+
+fn near(a: f64, b: f64) -> bool {
+    let d = if a > b { a - b } else { b - a }
+    let m = if a > b { a } else { b }
+    d <= 1.0e-12 * (if m > 1.0e-6 { m } else { 1.0e-6 })
+}
+
+fn check_k3(o: &MetaOut) with Mut, Div, Panic {
+    assert(o.k == 3)
+    assert(near(o.q, 20.0 / 7.0))
+    assert(near(o.tau2, 3.0 / 350.0))
+    assert(near(o.i2, 30.0))
+    assert(near(o.fe, 57.5 / 175.0))
+    // w* = 1 / (v + tau2)
+    let t = 3.0 / 350.0
+    let w0 = 1.0 / (0.04 + t)
+    let w1 = 1.0 / (0.01 + t)
+    let w2 = 1.0 / (0.02 + t)
+    let sw = w0 + w1 + w2
+    assert(near(o.re, (w0 * 0.1 + w1 * 0.3 + w2 * 0.5) / sw))
+    assert(near(o.se, sqrt_f64(1.0 / sw)))
+    assert(near(o.z, o.re / o.se))
+    assert(near(o.lo, o.re - 1.959963984540054 * o.se))
+    assert(near(o.hi, o.re + 1.959963984540054 * o.se))
+}
+
+fn check_homog(o: &MetaOut) with Mut, Div, Panic {
+    assert(o.k == 2)
+    assert(o.tau2 == 0.0)
+    assert(o.i2 == 0.0)
+    assert(near(o.fe, 0.21))
+    assert(near(o.re, 0.21))
+    assert(near(o.se, sqrt_f64(0.025)))
+}
+
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc, Epistemic {
+    var c = meta_case_new()
+    meta_load("tests/fixtures/meta/k3.txt", &!c)
+    var o1 = meta_out_new()
+    meta_dl(&c, &!o1)
+    check_k3(&o1)
+    var o2 = meta_out_new()
+    meta_dl_twin(&c, &!o2)
+    check_k3(&o2)
+
+    var h = meta_case_new()
+    meta_load("tests/fixtures/meta/homog.txt", &!h)
+    var h1 = meta_out_new()
+    meta_dl(&h, &!h1)
+    check_homog(&h1)
+    var h2 = meta_out_new()
+    meta_dl_twin(&h, &!h2)
+    check_homog(&h2)
+
+    // GUM dentro de UMA funcao: variancia propagada == 1 / sum(w*) == se^2 ; valor == efeito aleatorio
+    var g = GumOut { mu: 0.0, variance: 0.0, ok: 0 }
+    dl_pooled_gum(&c, o1.tau2, &!g)
+    assert(g.ok == 1)
+    assert(near(g.mu, o1.re))
+    assert(near(g.variance, o1.se * o1.se))
+    var g2 = GumOut { mu: 0.0, variance: 0.0, ok: 0 }
+    dl_pooled_gum(&h, h1.tau2, &!g2)
+    assert(g2.ok == 1)
+    assert(near(g2.variance, h1.se * h1.se))
+    // mais de 12 estudos: o GUM declina (ok = 0) em vez de fabricar
+    var big = meta_case_new()
+    var i: i64 = 0
+    while i < 13 { big.y[i as usize] = 0.1; big.v[i as usize] = 0.05; i = i + 1 }
+    big.k = 13
+    var g3 = GumOut { mu: 0.0, variance: 0.0, ok: 1 }
+    dl_pooled_gum(&big, 0.0, &!g3)
+    assert(g3.ok == 0)
+    meta_print(&o1)
+    print("META_CASES_OK\n")
+    return 0
+}

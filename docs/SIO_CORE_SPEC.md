@@ -38,7 +38,7 @@ Inteiros saem em decimal. Rótulos são ASCII sem espaço.
 ### 0.2 Comparação entre implementações
 
 Dois tokens numéricos `a`, `b` concordam com tolerância relativa `tol` se
-`|a−b| ≤ tol · max(|a|, |b|, 1e-6)`. `NA` só concorda com `NA`. `tol` default `1e-12`;
+`|a−b| ≤ tol · max(|a|, |b|, floor)`, com `floor = 1e-6` por padrão (uma linha de `gate/tolerances.tsv` pode fixar outro `floor` com a causa escrita: valores que se cancelam perto de 0 têm erro absoluto limitado mas relativo arbitrário). `NA` só concorda com `NA`. `tol` default `1e-12`;
 quantis e somas longas (≥ 1000 termos) usam `1e-9`. Tolerância maior só com a causa escrita
 em `gate/tolerances.tsv`. O comparador é `oracles/fsharp` (`compare`).
 
@@ -195,7 +195,7 @@ Comando `passport <caso>` com arquivo de caso:
 ```
 LAGMAX <int>
 B <int>
-SEED <u64 decimal>
+SEED <inteiro decimal <= 2^63-1>
 N <n>
 X <n valores decimais, um ou mais por linha>
 Y <n valores decimais>
@@ -224,8 +224,7 @@ ci   = yRE ± 1.959963984540054 · se
 ```
 
 Comando `meta <arquivo>`; saída: `k`, `Q`, `tau2`, `I2`, `pooled_fe`, `pooled_re`, `se`, `z`,
-`ci_lo`, `ci_hi`, e `gum_var <tok>` (só o núcleo Sounio principal: variância de `yRE` obtida por
-propagação GUM, que deve coincidir com `se²`).
+`ci_lo`, `ci_hi`, e (a variância GUM de `yRE`, que deve coincidir com `se²`, é verificada em `sio/test_meta.sio`, só no núcleo Sounio principal).
 
 ## 9. Propriedades para toda entrada (provadas em F*)
 

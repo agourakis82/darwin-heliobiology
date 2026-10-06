@@ -1,0 +1,74 @@
+name: Sounio core
+
+# Núcleo de cálculo em Sounio (sio/) validado pelo ADR-009 (gêmeo + referências F#/Futhark + provas F*).
+# Job independente do job Python de ci.yml: o Python NÃO tem poder de veto sobre o núcleo Sounio
+# (e a corroboração Python abaixo é só relatório, continue-on-error).
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sio-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependências do sistema
+        run: sudo apt-get update && sudo apt-get install -y xz-utils gcc make bc jq
+
+      - name: Toolchains pinados (gate/toolchains.env) + Sounio no commit pinado
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export SOUNIO_DIR="$RUNNER_TEMP/sounio"
+          make toolchains
+          echo "SOUNIO_DIR=$SOUNIO_DIR" >> "$GITHUB_ENV"
+
+      - name: make sio-test
+        run: make sio-test
+
+      - name: Tempos no OMNI2 completo (relatório)
+        if: always()
+        run: make bench || true
+
+      - name: Divergências Madaros x lean_single (relatório)
+        if: always()
+        run: make lean-single || true
+
+      - name: Artefatos do gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sio-core-gate
+          path: |
+            build/gate/*.out
+            build/gate/*.log
+            build/gate/bench.md
+            build/gate/lean_single_report.txt
+          if-no-files-found: ignore
+
+  corroborate-python:
+    # Só relatório: nunca falha o workflow e não é juiz (ADR-008: external_corroboration_only).
+    runs-on: ubuntu-latest
+    needs: sio-core
+    if: always()
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install numpy pandas pyarrow scipy requests
+      - uses: actions/download-artifact@v4
+        with:
+          name: sio-core-gate
+          path: build/gate
+        continue-on-error: true
+      - name: Corroboração Python (tabela de divergências)
+        run: PYTHONPATH=src python tests/corroboration/run.py || true
+      - name: Publica o relatório
+        if: always()
+        run: |
+          [ -f build/corroboration/report.md ] && cat build/corroboration/report.md >> "$GITHUB_STEP_SUMMARY" || true

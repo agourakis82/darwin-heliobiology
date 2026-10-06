@@ -1,0 +1,8 @@
+[
+ {"time_tag":"2025-01-01T00:00:00Z","active":true,"bz_gsm":-3.5,"bx_gsm":null,"by_gsm":1.25},
+ {"time_tag":"2025-01-01T01:00:00+02:00","active":true,"bz_gsm":-9999,"bx_gsm":1,"by_gsm":2},
+ {"time_tag":"2025-01-01T00:02:00.500","active":false,"bz_gsm":7.0,"bx_gsm":7,"by_gsm":7},
+ {"time_tag":"2025-01-01T00:03:00","active":true,"bz_gsm":"-2.5","bx_gsm":1.0e+000,"by_gsm":-0.0},
+ {"time_tag":"2025-01-01T00:04:00-03:30","active":true,"bz_gsm":0.0,"bx_gsm":0.5,"by_gsm":null},
+ {"time_tag":"not-a-date","active":true,"bz_gsm":1.0,"bx_gsm":1.0,"by_gsm":1.0}
+]

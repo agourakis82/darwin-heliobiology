@@ -1,0 +1,20 @@
+// Madaros NAO exige os efeitos `IO` (read_file / print) nem `Mut` (var reatribuida num helper puro);
+// lean_single exige os dois (error[E035]: effect not declared in function signature).
+//   Madaros:     check OK, run imprime 3
+//   lean_single: E035 nas linhas de `read_file`, de `print` e da reatribuicao `z = ...`
+fn bump(s: i64) -> i64 {
+    var z = s
+    z = z + 1
+    z
+}
+fn slurp(path: string) -> i64 {
+    str_len(read_file(path))
+}
+fn shout() {
+    print("hi\n")
+}
+fn main() -> i32 with IO, Mut {
+    print_int(bump(2))
+    print("\n")
+    return 0
+}

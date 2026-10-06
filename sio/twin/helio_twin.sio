@@ -1,0 +1,176 @@
+// sio/twin/helio_twin.sio — GEMEO do HelioMind Index (ADR-009 §1, ADR-008 `sounio_closed_form_twin`).
+//
+// Mesma especificacao (docs/SIO_CORE_SPEC.md §4), algoritmos deliberadamente DIFERENTES do
+// nucleo em sio/helio_index.sio onde ha escolha:
+//   * pertencimento a janela por IDADE (t_end - t < 43200) em vez de `t > cutoff`;
+//   * Dst: maximo de max(-x, 0) em vez de |min(min Dst, 0)|;
+//   * somas por Kahan (compensada) em vez de soma simples;
+//   * desvio-padrao em DUAS PASSADAS (media e depois soma dos desvios^2) em vez de Welford;
+//   * score como produto interno com vetor de pesos e clamp por min/max composto;
+//   * alertas por tabela de limiares.
+// Compartilha com o nucleo apenas E/S (helio_case.sio) e sqrt.
+
+use num::{sqrt_f64}
+use helio_case::{Ser, HelioOut, ser_t, ser_v, ser_ok}
+
+fn clamp01(x: f64) -> f64 {
+    var y = x
+    if y > 1.0 { y = 1.0 }
+    if y < 0.0 { y = 0.0 }
+    y
+}
+
+// Soma de Kahan sobre o buffer `p[0..n)`.
+fn kahan(p: i64, n: i64) -> f64 with Mut, Panic, Div {
+    let a = p as *mut f64
+    var s: f64 = 0.0
+    var c: f64 = 0.0
+    var i: i64 = 0
+    while i < n {
+        let y = read_f64(a, i) - c
+        let t = s + y
+        c = (t - s) - y
+        s = t
+        i = i + 1
+    }
+    s
+}
+
+// Coleta valores validos da janela de `s` (por idade) em um buffer novo; devolve n em *cnt.
+fn collect(s: &Ser, t_end: i64, cnt: &!i64) -> i64 with Mut, Panic, Div, Alloc {
+    let buf = heap_alloc(8 * (s.n + 1)) as *mut f64
+    var k: i64 = 0
+    var i: i64 = 0
+    while i < s.n {
+        let age = t_end - ser_t(s, i)
+        if age < 43200 && ser_ok(s, i) == 1 {
+            write_f64(buf, k, ser_v(s, i))
+            k = k + 1
+        }
+        i = i + 1
+    }
+    *cnt = k
+    buf as i64
+}
+
+pub fn helio_compute_twin(kp: &Ser, dst: &Ser, bz: &Ser, wn: &Ser, wv: &Ser, now: i64, out: &!HelioOut) with Mut, Panic, Div, Alloc {
+    // t_end: maximo sobre todas as amostras, por varredura unica de um vetor de series
+    var have = false
+    var t_end: i64 = now
+    var i: i64 = 0
+    while i < kp.n { let t = ser_t(kp, i); if !have || t > t_end { t_end = t; have = true }; i = i + 1 }
+    i = 0
+    while i < dst.n { let t = ser_t(dst, i); if !have || t > t_end { t_end = t; have = true }; i = i + 1 }
+    i = 0
+    while i < bz.n { let t = ser_t(bz, i); if !have || t > t_end { t_end = t; have = true }; i = i + 1 }
+    i = 0
+    while i < wn.n { let t = ser_t(wn, i); if !have || t > t_end { t_end = t; have = true }; i = i + 1 }
+    out.t_end = t_end
+
+    var nk: i64 = 0
+    let kb = collect(kp, t_end, &!nk)
+    var nd: i64 = 0
+    let db = collect(dst, t_end, &!nd)
+    var nb: i64 = 0
+    let bb = collect(bz, t_end, &!nb)
+    // vento: pressao por amostra completa
+    let pb = heap_alloc(8 * (wn.n + 1)) as *mut f64
+    var nw: i64 = 0
+    i = 0
+    while i < wn.n {
+        if t_end - ser_t(wn, i) < 43200 && ser_ok(wn, i) == 1 && ser_ok(wv, i) == 1 {
+            let dn = ser_v(wn, i)
+            let vv = ser_v(wv, i)
+            write_f64(pb, nw, 1.6726e-6 * (dn * (vv * vv)))
+            nw = nw + 1
+        }
+        i = i + 1
+    }
+    out.nwin[0] = nk
+    out.nwin[1] = nd
+    out.nwin[2] = nb
+    out.nwin[3] = nw
+
+    var c: i64 = 0
+    while c < 6 { out.okc[c as usize] = 0; out.val[c as usize] = 0.0; c = c + 1 }
+
+    if nk > 0 {
+        let mean = kahan(kb, nk) / (nk as f64)
+        out.okc[0] = 1
+        out.val[0] = clamp01((mean / 9.0))
+        if nk >= 2 {
+            // duas passadas
+            let a = kb as *mut f64
+            var acc: f64 = 0.0
+            var j: i64 = 0
+            while j < nk {
+                let d = read_f64(a, j) - mean
+                acc = acc + d * d
+                j = j + 1
+            }
+            let sd = sqrt_f64(acc / ((nk - 1) as f64))
+            out.okc[4] = 1
+            out.val[4] = clamp01(sd / 1.57)
+        }
+    }
+    if nd > 0 {
+        let a = db as *mut f64
+        var worst: f64 = 0.0           // max_i max(-x_i, 0) == |min(min Dst, 0)|
+        var j: i64 = 0
+        while j < nd {
+            let m = 0.0 - read_f64(a, j)
+            if m > worst { worst = m }
+            j = j + 1
+        }
+        out.okc[1] = 1
+        out.val[1] = clamp01(worst / 78.0)
+    }
+    if nb > 0 {
+        // transforma em max(-Bz,0) e soma por Kahan
+        let a = bb as *mut f64
+        var j: i64 = 0
+        while j < nb {
+            var m = 0.0 - read_f64(a, j)
+            if m < 0.0 { m = 0.0 }
+            write_f64(a, j, m)
+            j = j + 1
+        }
+        out.okc[2] = 1
+        out.val[2] = clamp01((kahan(bb, nb) / (nb as f64)) / 8.7)
+    }
+    if nw > 0 {
+        out.okc[3] = 1
+        out.val[3] = clamp01((kahan(pb as i64, nw) / (nw as f64)) / 7.30)
+    }
+
+    // alertas por tabela de limiares
+    var thr: [f64; 5] = [0.7, 0.6, 0.5, 0.5, 0.6]
+    var alerts: i64 = 0
+    var q: i64 = 0
+    while q < 5 {
+        if out.okc[q as usize] == 1 && out.val[q as usize] >= thr[q as usize] {
+            alerts = alerts + (1 << q)
+        }
+        q = q + 1
+    }
+    out.alerts = alerts
+
+    var all = true
+    q = 0
+    while q < 5 { if out.okc[q as usize] == 0 { all = false }; q = q + 1 }
+    if all {
+        var w: [f64; 5] = [0.35, 0.25, 0.20, 0.15, 0.05]
+        var dot: f64 = 0.0
+        q = 0
+        while q < 5 { dot = dot + w[q as usize] * out.val[q as usize]; q = q + 1 }
+        let sc = clamp01(dot)
+        out.okc[5] = 1
+        out.val[5] = sc
+        var k: i64 = 2
+        if sc < 0.66 { k = 1 }
+        if sc < 0.33 { k = 0 }
+        out.cls = k
+    } else {
+        out.cls = 3
+    }
+}

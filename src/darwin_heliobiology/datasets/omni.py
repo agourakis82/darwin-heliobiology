@@ -55,7 +55,7 @@ KP_OMNI_SCALE = 10.0
 _KP_REAL_MAX = 9.0
 
 
-def ensure_kp_scale(kp: "pd.Series") -> "pd.Series":
+def ensure_kp_scale(kp: pd.Series) -> pd.Series:
     """Leva uma série de Kp legada para a escala real 0–9 (idempotente).
 
     Só deve ser usada em arquivos antigos cuja escala não é conhecida. O parser

@@ -1,0 +1,11 @@
+// Madaros x lean_single: um struct de usuario chamado `Box` sombreia o builtin Box
+// SEM diagnostico: `souc check` diz OK e o ELF morre com SIGSEGV (rc=139).
+// lean_single: imprime 2.500000. Renomear o struct (ex.: Bx) corrige.
+struct Box { v: f64, n: i64 }
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    var b = Box { v: 0.0, n: 0 }
+    b.v = 2.5
+    print_f64(b.v)
+    print("\n")
+    return 0
+}

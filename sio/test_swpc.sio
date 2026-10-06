@@ -1,0 +1,105 @@
+// Testes de sio/swpc.sio: casos de borda escritos a mao + as quatro gravacoes reais.
+use num::{days_from_civil}
+use swpc::{Swpc, swpc_new, swpc_load, swpc_count_cap, swpc_valid, swpc_get, swpc_t, swpc_print_summary, parse_time}
+
+fn near(a: f64, b: f64) -> bool {
+    let d = if a > b { a - b } else { b - a }
+    d <= 1.0e-9
+}
+
+fn load(kind: i64, path: string) -> Swpc with IO, Mut, Div, Panic, Alloc {
+    var r = swpc_new(kind, swpc_count_cap(path))
+    swpc_load(&!r, path)
+    r
+}
+
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    // ---- time_tag: sem fuso = UTC; Z; deslocamentos; fracao ignorada
+    var ok: i64 = 0
+    let base = days_from_civil(2025, 1, 1) * 86400
+    let s1 = "2025-01-01T00:00:00"
+    assert(parse_time(s1, 0, str_len(s1), &!ok) == base && ok == 1)
+    let s2 = "2025-01-01T00:00:00Z"
+    assert(parse_time(s2, 0, str_len(s2), &!ok) == base && ok == 1)
+    let s3 = "2025-01-01T01:00:00+02:00"
+    assert(parse_time(s3, 0, str_len(s3), &!ok) == base - 3600 && ok == 1)
+    let s4 = "2025-01-01T00:00:00.999"
+    assert(parse_time(s4, 0, str_len(s4), &!ok) == base && ok == 1)
+    let s5 = "2025-13-01T00:00:00"
+    parse_time(s5, 0, str_len(s5), &!ok)
+    assert(ok == 0)
+
+    // ---- casos de borda (kind 3 = RTSW mag): 6 objetos -> 4 validos; 1 inativo + 1 malformado
+    let e = load(3, "tests/fixtures/swpc/edge_cases.json")
+    assert(e.n == 4)
+    assert(e.skipped == 2)
+    assert(swpc_t(&e, 0) == base)
+    assert(swpc_t(&e, 1) == base - 3600)
+    assert(swpc_t(&e, 2) == base + 180)
+    assert(swpc_t(&e, 3) == base + 12600 + 240)
+    // bx (0): null -> ausente; bz (2): -9999 -> ausente; "string numerica" aceita
+    assert(!swpc_valid(&e, 0, 0))
+    assert(swpc_valid(&e, 0, 1) && near(swpc_get(&e, 0, 1), 1.0))
+    assert(swpc_valid(&e, 0, 2) && near(swpc_get(&e, 0, 2), 1.0))
+    assert(swpc_valid(&e, 2, 0) && near(swpc_get(&e, 2, 0), -3.5))
+    assert(!swpc_valid(&e, 2, 1))
+    assert(swpc_valid(&e, 2, 2) && near(swpc_get(&e, 2, 2), -2.5))
+    assert(swpc_valid(&e, 2, 3) && swpc_get(&e, 2, 3) == 0.0)   // 0.0 e DADO
+    assert(!swpc_valid(&e, 1, 3))                                // by null
+
+    // ---- Kp de 3 h (real)
+    let kp = load(0, "tests/fixtures/swpc/kp_3h.json")
+    assert(kp.n == 62)
+    assert(swpc_t(&kp, 0) == days_from_civil(2026, 9, 29) * 86400)
+    assert(swpc_t(&kp, 61) == days_from_civil(2026, 10, 6) * 86400 + 15 * 3600)
+    var s: f64 = 0.0
+    var i: i64 = 0
+    while i < kp.n {
+        assert(swpc_valid(&kp, 0, i))
+        s = s + swpc_get(&kp, 0, i)
+        i = i + 1
+    }
+    assert(near(s, 121.0))          // jq: 121.00000000000001
+
+    // ---- Dst Kyoto: objeto e tabela legada devem dar os MESMOS 168 registros
+    let d1 = load(1, "tests/fixtures/swpc/dst_kyoto_object.json")
+    let d2 = load(2, "tests/fixtures/swpc/dst_kyoto_legacy_table.json")
+    assert(d1.n == 168)
+    assert(d2.n == 168)
+    assert(d2.skipped == 0)        // o cabecalho nao conta como pulado
+    i = 0
+    var dsum: f64 = 0.0
+    while i < d1.n {
+        assert(swpc_t(&d1, i) == swpc_t(&d2, i))
+        assert(swpc_valid(&d1, 0, i) && swpc_valid(&d2, 0, i))
+        assert(swpc_get(&d1, 0, i) == swpc_get(&d2, 0, i))
+        dsum = dsum + swpc_get(&d1, 0, i)
+        i = i + 1
+    }
+    assert(near(dsum, -987.0))
+
+    // ---- RTSW: so active == true
+    let mg = load(3, "tests/fixtures/swpc/rtsw_mag_1m.json")
+    assert(mg.n == 156)
+    assert(mg.skipped == 144)
+    var bsum: f64 = 0.0
+    i = 0
+    while i < mg.n { bsum = bsum + swpc_get(&mg, 2, i); i = i + 1 }
+    assert(near(bsum, -249.46))
+    let wd = load(4, "tests/fixtures/swpc/rtsw_wind_1m.json")
+    assert(wd.n == 157)
+    var vsum: f64 = 0.0
+    var nsum: f64 = 0.0
+    i = 0
+    while i < wd.n {
+        assert(swpc_valid(&wd, 0, i) && swpc_valid(&wd, 1, i))
+        vsum = vsum + swpc_get(&wd, 0, i)
+        nsum = nsum + swpc_get(&wd, 1, i)
+        i = i + 1
+    }
+    assert(near(vsum, 69148.0))
+    assert(near(nsum, 484.58))
+    swpc_print_summary(&e)
+    print("SWPC_FIXTURES_OK\n")
+    return 0
+}

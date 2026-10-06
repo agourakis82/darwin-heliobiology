@@ -1,0 +1,98 @@
+// Testes do HelioMind Index (nucleo + gemeo) sobre casos escritos a mao (valores conferidos a mao).
+use num::{sqrt_f64}
+use helio_case::{HelioCase, HelioOut, helio_case_new, helio_load_case, helio_out_new}
+use helio_index::{helio_compute}
+use twin::helio_twin::{helio_compute_twin}
+
+fn near(a: f64, b: f64) -> bool {
+    let d = if a > b { a - b } else { b - a }
+    let m = if a > b { a } else { b }
+    d <= 1.0e-12 * (if m > 1.0e-6 { m } else { 1.0e-6 })
+}
+
+fn run_one(path: string, which: i64, out: &!HelioOut) with IO, Mut, Div, Panic, Alloc {
+    var c = helio_case_new(64)
+    helio_load_case(path, &!c)
+    if which == 0 {
+        helio_compute(&c.kp, &c.dst, &c.bz, &c.wn, &c.wv, c.now, out)
+    } else {
+        helio_compute_twin(&c.kp, &c.dst, &c.bz, &c.wn, &c.wv, c.now, out)
+    }
+}
+
+fn check_window(o: &HelioOut) with Mut, Div, Panic {
+    assert(o.t_end == 100000)
+    assert(o.nwin[0] == 2 && o.nwin[1] == 2 && o.nwin[2] == 2 && o.nwin[3] == 1)
+    // kp = (1+3)/2/9 ; dst = 78/78 ; bz = (0+9.0)/2/8.7 ; pressao = 1.6726e-6*5*400^2/7.30 ; var = sqrt(2)/1.57
+    let kp = 2.0 / 9.0
+    let dst = 1.0
+    let bz = 4.5 / 8.7
+    let pr = 1.6726e-6 * 5.0 * 160000.0 / 7.30
+    let vr = sqrt_f64(2.0) / 1.57
+    assert(o.okc[0] == 1 && near(o.val[0], kp))
+    assert(o.okc[1] == 1 && near(o.val[1], dst))
+    assert(o.okc[2] == 1 && near(o.val[2], bz))
+    assert(o.okc[3] == 1 && near(o.val[3], pr))
+    assert(o.okc[4] == 1 && near(o.val[4], vr))
+    let sc = 0.35 * kp + 0.25 * dst + 0.20 * bz + 0.15 * pr + 0.05 * vr
+    assert(o.okc[5] == 1 && near(o.val[5], sc))
+    assert(o.cls == 1)           // 0.33 <= 0.4 < 0.66
+    // alertas: dst >= 0.6 (bit 2) e bz = 0.517 >= 0.5 (bit 4) ; var = 0.9 >= 0.6 (bit 16)
+    assert(o.alerts == 2 + 4 + 16)
+}
+
+fn check_na(o: &HelioOut) with Mut, Div, Panic {
+    assert(o.nwin[0] == 0)
+    assert(o.okc[0] == 0)          // kp ausente
+    assert(o.okc[4] == 0)          // variabilidade ausente
+    assert(o.okc[5] == 0)          // score ausente
+    assert(o.cls == 3)
+    assert(o.okc[1] == 1 && o.okc[2] == 1 && o.okc[3] == 1)   // os outros existem
+}
+
+fn check_one_kp(o: &HelioOut) with Mut, Div, Panic {
+    assert(o.okc[0] == 1 && near(o.val[0], 6.5 / 9.0))
+    assert(o.okc[4] == 0)
+    assert(o.okc[5] == 0 && o.cls == 3)
+    assert(o.alerts == 1 + 2 + 4 + 8)   // kp 0.72, dst 47/78=0.602, bz 6/8.7=0.69, pressao alta; var ausente nao alerta
+}
+
+fn check_empty(o: &HelioOut) with Mut, Div, Panic {
+    assert(o.t_end == 12345)
+    var c: i64 = 0
+    while c < 6 { assert(o.okc[c as usize] == 0); c = c + 1 }
+    assert(o.cls == 3 && o.alerts == 0)
+}
+
+fn check_storm(o: &HelioOut) with Mut, Div, Panic {
+    // kp = (26/3)/9 ; dst, bz, pressao saturam em 1 ; var = sqrt(1/3)/1.57 = 0.368 (< 0.6: sem alerta)
+    let kp = (26.0 / 3.0) / 9.0
+    let vr = sqrt_f64(1.0 / 3.0) / 1.57
+    assert(o.okc[5] == 1 && near(o.val[5], 0.35 * kp + 0.25 + 0.20 + 0.15 + 0.05 * vr))
+    assert(o.cls == 2)
+    assert(o.alerts == 1 + 2 + 4 + 8)
+}
+
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    var w: i64 = 0
+    while w < 2 {
+        var o = helio_out_new()
+        run_one("tests/fixtures/helio/window.txt", w, &!o)
+        check_window(&o)
+        var o2 = helio_out_new()
+        run_one("tests/fixtures/helio/na.txt", w, &!o2)
+        check_na(&o2)
+        var o3 = helio_out_new()
+        run_one("tests/fixtures/helio/one_kp.txt", w, &!o3)
+        check_one_kp(&o3)
+        var o4 = helio_out_new()
+        run_one("tests/fixtures/helio/empty.txt", w, &!o4)
+        check_empty(&o4)
+        var o5 = helio_out_new()
+        run_one("tests/fixtures/helio/storm.txt", w, &!o5)
+        check_storm(&o5)
+        w = w + 1
+    }
+    print("HELIO_CASES_OK\n")
+    return 0
+}

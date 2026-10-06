@@ -1,0 +1,112 @@
+// sio/twin/atlas_twin.sio — GEMEO do Atlas (ADR-009 §1).
+//
+// Em vez de varrer detectando mudanca de chave (nucleo), enderecamento DIRETO: cada registro
+// vira um indice de periodo inteiro (dias desde o 1o dia, ou meses/trimestres desde o 1o) e
+// os acumuladores vivem em vetores indexados por esse indice (robusto a ordem). Medias por
+// soma compensada (Kahan). Periodos vazios sao omitidos na saida.
+// Compartilha com o nucleo so E/S (atlas_case.sio, omni.sio) e o calendario.
+
+use num::{civil_from_days, Ymd}
+use omni::{Omni, omni_t, omni_valid, omni_get, col_bz, col_kp, col_dst}
+use atlas_case::{AtlasRes, atlas_push}
+
+// indice do periodo e componentes (y, sub, d)
+fn pidx(t: i64, res: i64, y0: i64, m0: i64, day0: i64, ymd: &!Ymd) -> i64 with Mut, Panic, Div {
+    let days = t / 86400
+    civil_from_days(days, ymd)
+    if res == 0 { return days - day0 }
+    if res == 1 { return (ymd.y - y0) * 12 + (ymd.m - 1) - (m0 - 1) }
+    let q = (ymd.m - 1) / 3
+    (ymd.y - y0) * 4 + q - (m0 - 1) / 3
+}
+
+fn kadd(sum: *mut f64, comp: *mut f64, i: i64, x: f64) with Mut, Panic, Div {
+    let y = x - read_f64(comp, i)
+    let s = read_f64(sum, i)
+    let t = s + y
+    write_f64(comp, i, (t - s) - y)
+    write_f64(sum, i, t)
+}
+
+pub fn atlas_build_twin(o: &Omni, res: i64, out: &!AtlasRes) with Mut, Panic, Div, Alloc {
+    if o.n == 0 { return }
+    var ymd = Ymd { y: 0, m: 0, d: 0 }
+    let first = omni_t(o, 0)
+    civil_from_days(first / 86400, &!ymd)
+    let y0 = ymd.y
+    let m0 = ymd.m
+    let day0 = first / 86400
+    // maior indice
+    var maxi: i64 = 0
+    var i: i64 = 0
+    while i < o.n {
+        let p = pidx(omni_t(o, i), res, y0, m0, day0, &!ymd)
+        if p > maxi { maxi = p }
+        i = i + 1
+    }
+    let np = maxi + 1
+    let cntk = heap_alloc(8 * np) as *mut i64
+    let sumk = heap_alloc(8 * np) as *mut f64
+    let cmpk = heap_alloc(8 * np) as *mut f64
+    let storm = heap_alloc(8 * np) as *mut i64
+    let cntd = heap_alloc(8 * np) as *mut i64
+    let sumd = heap_alloc(8 * np) as *mut f64
+    let cmpd = heap_alloc(8 * np) as *mut f64
+    let mind = heap_alloc(8 * np) as *mut f64
+    let cntb = heap_alloc(8 * np) as *mut i64
+    let sumb = heap_alloc(8 * np) as *mut f64
+    let cmpb = heap_alloc(8 * np) as *mut f64
+    let negb = heap_alloc(8 * np) as *mut i64
+    let seen = heap_alloc(8 * np) as *mut i64
+    let ky = heap_alloc(8 * np) as *mut i64
+    let ks = heap_alloc(8 * np) as *mut i64
+    let kd = heap_alloc(8 * np) as *mut i64
+    i = 0
+    while i < o.n {
+        let p = pidx(omni_t(o, i), res, y0, m0, day0, &!ymd)
+        if read_i64(seen, p) == 0 {
+            write_i64(seen, p, 1)
+            write_i64(ky, p, ymd.y)
+            if res == 0 { write_i64(ks, p, ymd.m); write_i64(kd, p, ymd.d) }
+            if res == 1 { write_i64(ks, p, ymd.m); write_i64(kd, p, 0) }
+            if res == 2 { write_i64(ks, p, (ymd.m - 1) / 3 + 1); write_i64(kd, p, 0) }
+        }
+        if omni_valid(o, col_kp(), i) {
+            let x = omni_get(o, col_kp(), i)
+            write_i64(cntk, p, read_i64(cntk, p) + 1)
+            kadd(sumk, cmpk, p, x)
+            if x >= 5.0 { write_i64(storm, p, read_i64(storm, p) + 1) }
+        }
+        if omni_valid(o, col_dst(), i) {
+            let x = omni_get(o, col_dst(), i)
+            if read_i64(cntd, p) == 0 || x < read_f64(mind, p) { write_f64(mind, p, x) }
+            write_i64(cntd, p, read_i64(cntd, p) + 1)
+            kadd(sumd, cmpd, p, x)
+        }
+        if omni_valid(o, col_bz(), i) {
+            let x = omni_get(o, col_bz(), i)
+            write_i64(cntb, p, read_i64(cntb, p) + 1)
+            kadd(sumb, cmpb, p, x)
+            if x < 0.0 { write_i64(negb, p, read_i64(negb, p) + 1) }
+        }
+        i = i + 1
+    }
+    var p: i64 = 0
+    while p < np {
+        if read_i64(seen, p) == 1 {
+            var mask: i64 = 0
+            var mk = 0.0
+            var md = 0.0
+            var mb = 0.0
+            var bf = 0.0
+            let nk = read_i64(cntk, p)
+            let nd = read_i64(cntd, p)
+            let nb = read_i64(cntb, p)
+            if nk > 0 { mask = mask + 1; mk = read_f64(sumk, p) / (nk as f64) }
+            if nd > 0 { mask = mask + 2 + 8; md = read_f64(sumd, p) / (nd as f64) }
+            if nb > 0 { mask = mask + 4 + 16; mb = read_f64(sumb, p) / (nb as f64); bf = (read_i64(negb, p) as f64) / (nb as f64) }
+            atlas_push(out, read_i64(ky, p), read_i64(ks, p), read_i64(kd, p), read_i64(storm, p), nk, mask, mk, md, mb, read_f64(mind, p), bf)
+        }
+        p = p + 1
+    }
+}

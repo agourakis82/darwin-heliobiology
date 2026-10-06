@@ -1,0 +1,163 @@
+// sio/drv_common.sio — protocolo do gate (spec §1) para o nucleo e para o gemeo.
+//
+// Le `build/gate/cmd.txt` (um comando por linha) e imprime, por comando, `begin <linha>` ... `end`.
+// which = 0: implementacoes PRINCIPAIS ; which = 1: GEMEOS (so os comandos que tem gemeo).
+
+use num::{Tok, find_nl, next_tok, tok_is}
+use omni::{Omni, omni_new, omni_append_file, omni_count_lines, omni_print_summary}
+use swpc::{Swpc, swpc_new, swpc_load, swpc_count_cap, swpc_print_summary}
+use helio_case::{HelioCase, HelioOut, helio_case_new, helio_load_case, helio_out_new, helio_print_out}
+use helio_index::{helio_compute}
+use twin::helio_twin::{helio_compute_twin}
+use atlas_case::{AtlasRes, atlas_res_new, atlas_print}
+use atlas::{atlas_build}
+use twin::atlas_twin::{atlas_build_twin}
+use calib_case::{CalibOut, calib_out_new, calib_print}
+use calibration::{calib_run}
+use twin::calib_twin::{calib_run_twin}
+use passport_case::{PassCase, PassOut, pass_case_new, pass_out_new, pass_load, pass_print}
+use passport::{passport_run}
+use twin::passport_twin::{passport_run_twin}
+use meta_case::{MetaCase, MetaOut, meta_case_new, meta_load, meta_out_new, meta_print}
+use meta::{meta_dl}
+use twin::meta_twin::{meta_dl_twin}
+
+// n-esimo token (0-based) da linha [a, le) como string; "" se nao existir
+fn nth_tok(s: string, a: i64, le: i64, n: i64) -> string with Mut, Panic, Div {
+    var cur = a
+    var tk = Tok { a: 0, b: 0 }
+    var k: i64 = 0
+    while next_tok(s, &!cur, le, &!tk) {
+        if k == n { return str_slice(s, tk.a, tk.b) }
+        k = k + 1
+    }
+    ""
+}
+
+fn count_toks(s: string, a: i64, le: i64) -> i64 with Mut, Panic, Div {
+    var cur = a
+    var tk = Tok { a: 0, b: 0 }
+    var k: i64 = 0
+    while next_tok(s, &!cur, le, &!tk) { k = k + 1 }
+    k
+}
+
+fn load_omni_files(s: string, a: i64, le: i64, first: i64, o: &!Omni) with IO, Mut, Panic, Div, Alloc {
+    let nt = count_toks(s, a, le)
+    var i = first
+    var cap: i64 = 0
+    while i < nt {
+        cap = cap + omni_count_lines(nth_tok(s, a, le, i))
+        i = i + 1
+    }
+    *o = omni_new(cap)
+    i = first
+    while i < nt {
+        omni_append_file(o, nth_tok(s, a, le, i))
+        i = i + 1
+    }
+}
+
+fn res_of(name: string) -> i64 with Mut, Panic, Div {
+    if str_eq(name, "daily") { return 0 }
+    if str_eq(name, "monthly") { return 1 }
+    2
+}
+
+fn kind_of(name: string) -> i64 with Mut, Panic, Div {
+    if str_eq(name, "kp") { return 0 }
+    if str_eq(name, "dst_obj") { return 1 }
+    if str_eq(name, "dst_tab") { return 2 }
+    if str_eq(name, "mag") { return 3 }
+    4
+}
+
+pub fn drv_run(which: i64) -> i32 with IO, Mut, Div, Panic, Alloc {
+    let s = read_file("build/gate/cmd.txt")
+    let n = str_len(s)
+    var pos: i64 = 0
+    while pos < n {
+        let le = find_nl(s, n, pos)
+        let nt = count_toks(s, pos, le)
+        if nt > 0 {
+            let cmd = nth_tok(s, pos, le, 0)
+            let a1 = nth_tok(s, pos, le, 1)
+            var handled = false
+            // eco do comando
+            var echo = false
+            if which == 0 { echo = true }
+            if which == 1 && (str_eq(cmd, "helio") || str_eq(cmd, "atlas") || str_eq(cmd, "calib") || str_eq(cmd, "passport") || str_eq(cmd, "meta")) { echo = true }
+            if echo {
+                print("begin ")
+                var k: i64 = 0
+                while k < nt {
+                    if k > 0 { print(" ") }
+                    print(nth_tok(s, pos, le, k))
+                    k = k + 1
+                }
+                print("\n")
+            }
+            if str_eq(cmd, "omni") && which == 0 {
+                var o = omni_new(1)
+                load_omni_files(s, pos, le, 1, &!o)
+                omni_print_summary(&o)
+                handled = true
+            }
+            if str_eq(cmd, "swpc") && which == 0 {
+                let path = nth_tok(s, pos, le, 2)
+                var r = swpc_new(kind_of(a1), swpc_count_cap(path))
+                swpc_load(&!r, path)
+                swpc_print_summary(&r)
+                handled = true
+            }
+            if str_eq(cmd, "helio") {
+                var c = helio_case_new(4096)
+                helio_load_case(a1, &!c)
+                var out = helio_out_new()
+                if which == 0 { helio_compute(&c.kp, &c.dst, &c.bz, &c.wn, &c.wv, c.now, &!out) }
+                else { helio_compute_twin(&c.kp, &c.dst, &c.bz, &c.wn, &c.wv, c.now, &!out) }
+                helio_print_out(&out)
+                handled = true
+            }
+            if str_eq(cmd, "atlas") {
+                var o = omni_new(1)
+                load_omni_files(s, pos, le, 2, &!o)
+                let res = res_of(a1)
+                var r = atlas_res_new(res, o.n + 1)
+                if which == 0 { atlas_build(&o, res, &!r) } else { atlas_build_twin(&o, res, &!r) }
+                atlas_print(&r)
+                handled = true
+            }
+            if str_eq(cmd, "calib") {
+                var o = omni_new(1)
+                load_omni_files(s, pos, le, 1, &!o)
+                var out = calib_out_new()
+                if which == 0 { calib_run(&o, &!out) } else { calib_run_twin(&o, &!out) }
+                calib_print(&out)
+                handled = true
+            }
+            if str_eq(cmd, "passport") {
+                var c = pass_case_new()
+                pass_load(a1, &!c)
+                var out = pass_out_new()
+                if which == 0 { passport_run(&c, &!out) } else { passport_run_twin(&c, &!out) }
+                pass_print(&c, &out)
+                handled = true
+            }
+            if str_eq(cmd, "meta") {
+                var c = meta_case_new()
+                meta_load(a1, &!c)
+                var out = meta_out_new()
+                if which == 0 { meta_dl(&c, &!out) } else { meta_dl_twin(&c, &!out) }
+                meta_print(&out)
+                handled = true
+            }
+            if echo {
+                if !handled { print("unsupported\n") }
+                print("end\n")
+            }
+        }
+        pos = le + 1
+    }
+    0
+}

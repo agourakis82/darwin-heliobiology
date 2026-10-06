@@ -1,0 +1,6 @@
+# um unico Kp valido: kp existe, variability e AUSENTE (precisa de >= 2), score ausente
+NOW 5
+KP 100000 6.5
+DST 100000 -47
+BZ 100000 -6.0
+WIND 100000 8.0 700.0

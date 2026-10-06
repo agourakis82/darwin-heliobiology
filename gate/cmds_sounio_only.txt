@@ -1,0 +1,9 @@
+# comandos sem referencia estrangeira: so nucleo x gemeo (atlas: sem F# por escopo do ADR; passaporte: Futhark)
+atlas daily tests/fixtures/omni2/atlas.dat
+atlas monthly tests/fixtures/omni2/atlas.dat
+atlas quarterly tests/fixtures/omni2/atlas.dat
+atlas daily @OMNI@
+atlas monthly @OMNI@
+atlas quarterly @OMNI@
+passport tests/fixtures/passport/small120.txt
+passport build/gate/cases/pass_2400.txt

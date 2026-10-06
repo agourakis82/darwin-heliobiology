@@ -1,0 +1,1 @@
+Madaros não impõe os efeitos IO (read_file, print) nem Mut (var reatribuída em helper); lean_single impõe

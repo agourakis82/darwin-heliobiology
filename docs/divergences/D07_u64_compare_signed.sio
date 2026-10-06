@@ -1,0 +1,7 @@
+// Madaros (e lean_single): comparacao `>` entre u64 e SINALIZADA.
+// 0xE220A8397B1DCDAF > 1 deveria ser verdadeiro (u64); ambos os motores imprimem "signed-neg".
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    let a: u64 = 0xE220A8397B1DCDAF
+    if a > 1 { print("unsigned-ok\n") } else { print("signed-neg\n") }
+    return 0
+}

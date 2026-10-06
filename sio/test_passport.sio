@@ -1,0 +1,69 @@
+// Testes do passaporte: vetores do SplitMix64, series perfeitamente correlacionadas e a
+// concordancia nucleo x gemeo num caso pequeno. O oraculo independente (Futhark) esta no gate.
+use passport_case::{PassCase, PassOut, pass_case_new, pass_out_new, pass_load}
+use passport::{passport_run}
+use twin::passport_twin::{passport_run_twin}
+
+fn near(a: f64, b: f64, tol: f64) -> bool {
+    let d = if a > b { a - b } else { b - a }
+    let m = if a > b { a } else { b }
+    d <= tol * (if m > 1.0e-6 { m } else { 1.0e-6 })
+}
+
+fn lsr(x: i64, k: i64) -> i64 {
+    let mask = ((1 << (63 - k)) - 1) * 2 + 1
+    (x >> k) & mask
+}
+
+fn sm_step(s: i64) -> i64 with Mut {
+    var z = s
+    z = (z ^ lsr(z, 30)) * (-4658895280553007687)
+    z = (z ^ lsr(z, 27)) * (-7723592293110705685)
+    z ^ lsr(z, 31)
+}
+
+fn splitmix_vec() with Mut, Div, Panic {
+    // vetores publicos do SplitMix64 com estado inicial 0:
+    //   1a saida 0xE220A8397B1DCDAF  -> (>> 40) = 14819496
+    //   2a saida 0x6E789E6AA1B965F4  -> (>> 40) = 7239838
+    //   3a saida 0x06C45D188009454F  -> (>> 40) = 443485
+    var s: i64 = 0
+    s = s + (-7046029254386353131)
+    assert(lsr(sm_step(s), 40) == 14819496)
+    s = s + (-7046029254386353131)
+    assert(lsr(sm_step(s), 40) == 7239838)
+    s = s + (-7046029254386353131)
+    assert(lsr(sm_step(s), 40) == 443485)
+}
+
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    splitmix_vec()
+    // caso: y = x deslocado -> T proximo de 1 no lag certo
+    var c = pass_case_new()
+    pass_load("tests/fixtures/passport/small120.txt", &!c)
+    assert(c.n == 120 && c.b == 200 && c.lag_max == 6)
+    var o1 = pass_out_new()
+    passport_run(&c, &!o1)
+    var o2 = pass_out_new()
+    passport_run_twin(&c, &!o2)
+    // y_i = 2*x_(i-3) + const  =>  r(3) = 1 (a menos de arredondamento)
+    assert(o1.lag_obs == 3)
+    assert(near(o1.t_obs, 1.0, 1.0e-12))
+    assert(o2.lag_obs == 3)
+    assert(near(o2.t_obs, o1.t_obs, 1.0e-12))
+    // p-valor: no intervalo [1/(B+1), 1] e igual nos dois caminhos
+    assert(o1.p >= 1.0 / 201.0 && o1.p <= 1.0)
+    assert(o1.p == o2.p)
+    // cada T_b concorda entre os dois caminhos (mesma seed e mesmo PRNG; correlacao diferente)
+    var b: i64 = 0
+    var worst: f64 = 0.0
+    while b < c.b {
+        let a = read_f64(o1.nulls as *mut f64, b)
+        let d = read_f64(o2.nulls as *mut f64, b)
+        assert(near(a, d, 1.0e-9))
+        b = b + 1
+    }
+    assert(near(o1.q[3], o2.q[3], 1.0e-9))
+    print("PASSPORT_CASES_OK\n")
+    return 0
+}

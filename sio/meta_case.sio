@@ -1,0 +1,75 @@
+// sio/meta_case.sio — caso de entrada e impressao da meta-analise DL (compartilhado: so E/S).
+//
+// Arquivo de caso: linhas `STUDY <id> <y> <v>` (efeito, variancia > 0). Ate 64 estudos.
+
+use num::{NumOut, Tok, parse_dec, find_nl, next_tok, tok_is, print_tok}
+
+pub struct MetaCase { pub k: i64, pub y: [f64; 64], pub v: [f64; 64] }
+
+pub fn meta_case_new() -> MetaCase with Alloc, Mut, Panic, Div {
+    MetaCase { k: 0, y: [0.0; 64], v: [1.0; 64] }
+}
+
+pub fn meta_load(path: string, c: &!MetaCase) with IO, Mut, Panic, Div, Alloc {
+    let s = read_file(path)
+    let n = str_len(s)
+    var pos: i64 = 0
+    var tk = Tok { a: 0, b: 0 }
+    var num = NumOut { v: 0.0, ok: 0 }
+    while pos < n {
+        let le = find_nl(s, n, pos)
+        var cur = pos
+        if next_tok(s, &!cur, le, &!tk) {
+            if tok_is(s, &tk, "STUDY") {
+                next_tok(s, &!cur, le, &!tk)            // id (ignorado)
+                var yv: f64 = 0.0
+                var vv: f64 = 1.0
+                var ok = true
+                if next_tok(s, &!cur, le, &!tk) {
+                    parse_dec(s, tk.a, tk.b, &!num)
+                    if num.ok == 1 { yv = num.v } else { ok = false }
+                } else { ok = false }
+                if next_tok(s, &!cur, le, &!tk) {
+                    parse_dec(s, tk.a, tk.b, &!num)
+                    if num.ok == 1 { vv = num.v } else { ok = false }
+                } else { ok = false }
+                if ok && c.k < 64 && vv > 0.0 {
+                    c.y[c.k as usize] = yv
+                    c.v[c.k as usize] = vv
+                    c.k = c.k + 1
+                }
+            }
+        }
+        pos = le + 1
+    }
+}
+
+pub struct MetaOut {
+    pub k: i64,
+    pub q: f64,
+    pub tau2: f64,
+    pub i2: f64,
+    pub fe: f64,
+    pub re: f64,
+    pub se: f64,
+    pub z: f64,
+    pub lo: f64,
+    pub hi: f64,
+}
+
+pub fn meta_out_new() -> MetaOut with Alloc, Mut, Panic, Div {
+    MetaOut { k: 0, q: 0.0, tau2: 0.0, i2: 0.0, fe: 0.0, re: 0.0, se: 0.0, z: 0.0, lo: 0.0, hi: 0.0 }
+}
+
+pub fn meta_print(o: &MetaOut) with IO, Mut, Panic, Div {
+    print("k "); print_int(o.k); print("\n")
+    print("Q "); print_tok(o.q); print("\n")
+    print("tau2 "); print_tok(o.tau2); print("\n")
+    print("I2 "); print_tok(o.i2); print("\n")
+    print("pooled_fe "); print_tok(o.fe); print("\n")
+    print("pooled_re "); print_tok(o.re); print("\n")
+    print("se "); print_tok(o.se); print("\n")
+    print("z "); print_tok(o.z); print("\n")
+    print("ci_lo "); print_tok(o.lo); print("\n")
+    print("ci_hi "); print_tok(o.hi); print("\n")
+}

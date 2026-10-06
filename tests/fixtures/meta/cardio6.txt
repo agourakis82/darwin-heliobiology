@@ -1,0 +1,7 @@
+# 6 estudos (Fisher-z de correlacoes, variancia 1/(n-3)); valores ilustrativos de ordem de grandeza
+STUDY s1 0.236 0.00080
+STUDY s2 0.141 0.00210
+STUDY s3 0.310 0.00450
+STUDY s4 0.054 0.00031
+STUDY s5 0.198 0.00120
+STUDY s6 -0.020 0.00950
