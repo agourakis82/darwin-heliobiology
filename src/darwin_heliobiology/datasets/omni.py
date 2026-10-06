@@ -51,8 +51,8 @@ FILL_VALUES: Dict[str, float] = {
 #: OMNI2 armazena Kp multiplicado por 10 (0–90). A leitura SEMPRE divide por 10.
 KP_OMNI_SCALE = 10.0
 
-#: Acima disto uma série de Kp só pode estar na escala ×10 (Kp real ≤ 9).
-_KP_REAL_MAX = 9.5
+#: Acima disto uma série de Kp só pode estar na escala ×10 (Kp real ≤ 9.0).
+_KP_REAL_MAX = 9.0
 
 
 def ensure_kp_scale(kp: "pd.Series") -> "pd.Series":
@@ -60,7 +60,7 @@ def ensure_kp_scale(kp: "pd.Series") -> "pd.Series":
 
     Só deve ser usada em arquivos antigos cuja escala não é conhecida. O parser
     OMNI (:func:`_parse_omni2_text`) já divide por 10 na leitura. Decide pela
-    série inteira (máximo > 9.5 ⇒ ×10) e nunca valor a valor. NaN é preservado.
+    série inteira (máximo > 9.0 ⇒ ×10) e nunca valor a valor. NaN é preservado.
     """
     if kp.notna().any() and float(kp.max()) > _KP_REAL_MAX:
         return kp / KP_OMNI_SCALE
