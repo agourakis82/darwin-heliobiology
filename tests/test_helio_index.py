@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 
 from darwin_heliobiology.metrics.helio_index import compute_helio_mind_index
@@ -76,7 +77,7 @@ def test_compute_heliomind_index_returns_components_within_bounds() -> None:
     assert result.classification in {"estavel", "vigilancia", "alerta"}
     assert result.components.kp_activity >= 0.0
     assert result.components.solar_wind_pressure >= 0.0
-    assert result.metadata["window_hours"] == 24
+    assert result.metadata["window_hours"] == 12
     assert result.timestamp.tzinfo is not None
 
 
@@ -105,6 +106,59 @@ def test_compute_heliomind_index_handles_empty_series() -> None:
 
     result = compute_helio_mind_index(observation)
 
-    assert result.score == 0.0
+    # Sem dado, NADA é fabricado: score NaN e classe "indisponivel" (nunca 0.0 / "estavel").
+    assert math.isnan(result.score)
     assert result.alerts == []
-    assert result.classification == "estavel"
+    assert result.classification == "indisponivel"
+    assert math.isnan(result.components.kp_activity)
+
+
+def _obs(base, *, kp_hours, dst=(-10.0,), bz=(1.0,), n=5.0, v=400.0):
+    """Observação com Kp em horas-atrás dadas (por TEMPO) e demais séries pontuais."""
+    kp_series = [
+        SolarIndex(timestamp=base - timedelta(hours=h), value=val, label="Kp")
+        for h, val in kp_hours
+    ]
+    return SolarObservation(
+        kp_series=kp_series,
+        dst_series=[SolarIndex(timestamp=base, value=d, label="Dst") for d in dst],
+        solar_wind=[
+            SolarWindSample(timestamp=base, speed_kms=v, density_pcm3=n, temperature_k=1e5)
+        ],
+        imf=[IMFVector(timestamp=base, bx_nt=0.0, by_nt=0.0, bz_nt=b, bt_nt=abs(b)) for b in bz],
+        metadata={},
+    )
+
+
+def test_window_is_by_time_not_by_sample_count() -> None:
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+    # Kp=9 há 20 h (fora da janela de 12 h) e Kp=1 nas últimas horas: só as recentes contam.
+    obs = _obs(base, kp_hours=[(20.0, 9.0), (3.0, 1.0), (2.0, 1.0), (0.0, 1.0)])
+    result = compute_helio_mind_index(obs)
+    assert abs(result.components.kp_activity - 1.0 / 9.0) < 1e-12
+    assert result.components.variability == 0.0  # std de [1,1,1] = 0 (e há ≥ 2 amostras)
+
+
+def test_variability_uses_sample_std_ddof1() -> None:
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+    obs = _obs(base, kp_hours=[(2.0, 2.0), (1.0, 4.0)])  # std ddof=1 = sqrt(2)
+    result = compute_helio_mind_index(obs)
+    assert abs(result.components.variability - math.sqrt(2.0) / 1.57) < 1e-12
+
+
+def test_single_kp_sample_makes_variability_absent_not_zero() -> None:
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+    result = compute_helio_mind_index(_obs(base, kp_hours=[(0.0, 3.0)]))
+    assert math.isnan(result.components.variability)
+    assert math.isnan(result.score)
+    assert result.classification == "indisponivel"
+
+
+def test_nan_samples_are_dropped_not_zeroed() -> None:
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+    obs = _obs(
+        base, kp_hours=[(2.0, 3.0), (1.0, float("nan")), (0.0, 5.0)], bz=(float("nan"), -4.0)
+    )
+    result = compute_helio_mind_index(obs)
+    assert abs(result.components.kp_activity - 4.0 / 9.0) < 1e-12
+    assert abs(result.components.bz_reconnection - 4.0 / 8.7) < 1e-12

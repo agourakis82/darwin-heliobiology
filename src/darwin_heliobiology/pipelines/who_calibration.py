@@ -18,6 +18,8 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 
+from darwin_heliobiology.datasets.omni import ensure_kp_scale
+
 
 @dataclass(slots=True)
 class WHOCalibrationConfig:
@@ -118,9 +120,7 @@ def _aggregate_solar_annual(
     df = df[(df["year"] >= config.min_year) & (df["year"] <= config.max_year)]
 
     # Componentes normalizadas (0..1) — reusa lógica do helio_index
-    kp = df["kp_index"].copy()
-    if kp.max() > 9.5:
-        kp = kp / 10.0
+    kp = ensure_kp_scale(df["kp_index"].copy())
     df["kp_activity"] = kp / 9.0
 
     dst = df["dst_nt"].copy()
@@ -129,16 +129,23 @@ def _aggregate_solar_annual(
     if "bz_gsm_nt" in df.columns:
         bz = df["bz_gsm_nt"].copy()
     else:
-        bz = pd.Series(0.0, index=df.index)
+        bz = pd.Series(np.nan, index=df.index)  # ausente ≠ 0
     df["bz_reconnection"] = np.clip(np.maximum(-bz, 0.0) / 8.7, 0.0, 1.0)
 
     if "speed_kms" in df.columns and "proton_density_pcm3" in df.columns:
-        pressure = df["proton_density_pcm3"] * df["speed_kms"] ** 2
-        df["solar_wind_pressure"] = np.clip(pressure / 4_364_643.0, 0.0, 1.0)
+        pressure = 1.6726e-6 * df["proton_density_pcm3"] * df["speed_kms"] ** 2
+        df["solar_wind_pressure"] = np.clip(pressure / 7.30, 0.0, 1.0)
     else:
-        df["solar_wind_pressure"] = 0.0
+        df["solar_wind_pressure"] = np.nan
 
-    df["variability"] = 0.0  # Placeholder — std(Kp,12h) requer janela rolling
+    # std(Kp,12h) por tempo, ddof=1 (antes era um placeholder 0.0 = "calmo" fabricado)
+    if "timestamp" in df.columns:
+        kp_t = pd.Series(kp.to_numpy(), index=pd.DatetimeIndex(df["timestamp"]))
+        df["variability"] = np.clip(
+            kp_t.rolling("12h", min_periods=2).std(ddof=1).to_numpy() / 1.57, 0.0, 1.0
+        )
+    else:
+        df["variability"] = np.nan
 
     agg_cols = config.solar_components
     annual = df.groupby("year")[agg_cols].mean().reset_index()

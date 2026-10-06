@@ -1,26 +1,26 @@
 {
   "calibrated_from": "OMNI2 2020-2025",
   "n_records": 52608,
-  "timestamp": "2026-02-09T22:08:23.239496+00:00",
+  "timestamp": "2026-10-06T19:44:24.703405+00:00",
   "constants": {
     "kp_index": {
       "current": 9.0,
       "calibrated_p99": 9.0
     },
     "dst_nt": {
-      "current": 300.0,
+      "current": 78.0,
       "calibrated_p99": 78.0
     },
     "bz_nt": {
-      "current": 20.0,
+      "current": 8.7,
       "calibrated_p99": 8.7
     },
     "pressure_rho_v2": {
-      "current": 300000.0,
-      "calibrated_p99": 4364642.825
+      "current": 7.3,
+      "calibrated_p99": 7.300301589095001
     },
     "kp_variability": {
-      "current": 2.5,
+      "current": 1.57,
       "calibrated_p99": 1.5665325296331842
     }
   }
