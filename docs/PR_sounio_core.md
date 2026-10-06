@@ -58,15 +58,7 @@ SIO_TEST_OK
 
 ## Corroboração Python (só relatório — `make corroborate`, nunca falha)
 
-144 comparações (helio × 5 casos, calib × 2 arquivos, atlas diário/mensal/trimestral × 2, meta × 4, passaporte × 2), **141 concordam**. Divergências:
-
-| caso | grandeza | Sounio (= gêmeo = F#) | Python | rel |
-|---|---|---|---|---|
-| helio `window.txt` | comp kp | 0.2222 | 0.4815 | 5.4e-1 |
-| helio `window.txt` | comp variability | 0.9008 | 1 | 9.9e-2 |
-| helio `window.txt` | score | 0.5038 | 0.5995 | 1.6e-1 |
-
-Causa: `_latest_timestamp` usa o **último elemento** das séries, não o máximo (o feed RTSW vem do mais novo para o mais antigo). Confirmada por gêmeo + F# como acerto do Sounio ⇒ **issue no darwin-heliobiology** (agourakis82/darwin-heliobiology#3), sem ajuste no Sounio.
+144 comparações (helio × 5 casos, calib × 2 arquivos, atlas diário/mensal/trimestral × 2, meta × 4, passaporte × 2), **144 concordam**. A primeira rodada deu 141/144: as 3 divergências (`comp kp` 0.2222 × 0.4815, `comp variability` 0.9008 × 1, `score` 0.5038 × 0.5995, caso `window.txt`) vinham de `_latest_timestamp` usar o **último elemento** das séries em vez do máximo (o feed RTSW vem do mais novo para o mais antigo). Gêmeo + F# confirmaram o acerto do Sounio ⇒ issue agourakis82/darwin-heliobiology#3 e correção no **Python** (commit desta PR, com teste `test_window_reference_is_max_timestamp_regardless_of_series_order`), sem ajuste no Sounio. Closes #3.
 
 ## Tempos no OMNI2 completo (52 608 h, 20 MB; mediana de 3; tempo de parede com partida do processo)
 

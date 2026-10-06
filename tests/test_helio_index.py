@@ -162,3 +162,28 @@ def test_nan_samples_are_dropped_not_zeroed() -> None:
     result = compute_helio_mind_index(obs)
     assert abs(result.components.kp_activity - 4.0 / 9.0) < 1e-12
     assert abs(result.components.bz_reconnection - 4.0 / 8.7) < 1e-12
+
+
+def test_window_reference_is_max_timestamp_regardless_of_series_order() -> None:
+    """Séries em ordem decrescente (como o RTSW) dão o mesmo resultado que em ordem crescente."""
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+
+    def kp(h: float, v: float) -> SolarIndex:
+        return SolarIndex(timestamp=base - timedelta(hours=h), value=v, label="Kp")
+
+    def build(order: list[tuple[float, float]]) -> SolarObservation:
+        return SolarObservation(
+            kp_series=[kp(h, v) for h, v in order],
+            dst_series=[SolarIndex(timestamp=base, value=-10.0, label="Dst")],
+            solar_wind=[SolarWindSample(base, 400.0, 5.0, 1e5)],
+            imf=[IMFVector(base, 0.0, 0.0, 1.0, 1.0)],
+            metadata={},
+        )
+
+    samples = [(20.0, 9.0), (3.0, 1.0), (2.0, 3.0), (0.0, 5.0)]  # a de 20 h fica fora da janela
+    asc = compute_helio_mind_index(build(samples))
+    desc = compute_helio_mind_index(build(list(reversed(samples))))
+    assert asc.timestamp == desc.timestamp == base
+    assert abs(asc.components.kp_activity - 3.0 / 9.0) < 1e-12
+    assert asc.components.kp_activity == desc.components.kp_activity
+    assert asc.components.variability == desc.components.variability

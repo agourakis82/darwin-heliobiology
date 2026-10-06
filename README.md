@@ -108,7 +108,7 @@ séries já alinhadas.
 
 Python (`tests/corroboration/`) é `external_corroboration_only`: reporta divergências numa tabela e nunca falha.
 Uma divergência que gêmeo e referência confirmam como acerto do Sounio vira issue aqui, não ajuste no Sounio
-(já há uma: agourakis82/darwin-heliobiology#3, `_latest_timestamp`).
+(foi o caso de agourakis82/darwin-heliobiology#3, `_latest_timestamp`, corrigido no próprio Python).
 
 ### Limites do ambiente e da linguagem
 

@@ -10,6 +10,7 @@ Integridade de dados (ausente nunca vira 0; escalas e janelas explícitas):
 - SolarAtlas (NOAA): campo ausente descarta a amostra / vira `NaN` (antes: `0.0` default para Kp, velocidade, densidade, Bz).
 - Calibração/WHO: variabilidade std(Kp,12 h) por tempo com ddof=1; o placeholder `variability = 0.0` e `Bz = 0.0` ausentes viraram `NaN`.
 - Fisher-z recusa |r| = 1.
+- HelioMind: `_latest_timestamp` toma o MAIOR timestamp de todas as séries (antes o último elemento de cada lista, que no feed RTSW decrescente é a amostra mais antiga; issue #3).
 
 ## [0.2.0] - 2025-02-09
 

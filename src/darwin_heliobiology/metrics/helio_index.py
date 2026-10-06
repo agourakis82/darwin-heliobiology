@@ -218,7 +218,9 @@ def _build_alerts(components: HelioMindComponents) -> List[str]:
     # Evidência cardiovascular (grau A), psiquiátrica (grau C).
     # Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.3. Componente ausente (NaN) não alerta.
     alerts: List[str] = []
-    if components.kp_activity >= 0.7:  # Kp ≥ 6.3 ≈ G3 (NOAA)
+    if (
+        components.kp_activity >= 0.7
+    ):  # Kp ≥ 6.3 (0.7·9): entre G2 (Kp 6) e G3 (Kp 7) da escala NOAA
         alerts.append("Kp elevado — tempestade geomagnetica em curso")
     if components.dst_storm_intensity >= 0.6:  # |Dst| ≥ 47 nT (≈ top 5% das horas)
         alerts.append("Dst muito negativo — risco cardiovascular elevado (RR ~1.1–1.5)")
@@ -232,15 +234,16 @@ def _build_alerts(components: HelioMindComponents) -> List[str]:
 
 
 def _latest_timestamp(snapshot: SolarObservation, default: Optional[datetime] = None) -> datetime:
-    candidates: List[datetime] = []
-    if snapshot.kp_series:
-        candidates.append(snapshot.kp_series[-1].timestamp)
-    if snapshot.dst_series:
-        candidates.append(snapshot.dst_series[-1].timestamp)
-    if snapshot.imf:
-        candidates.append(snapshot.imf[-1].timestamp)
-    if snapshot.solar_wind:
-        candidates.append(snapshot.solar_wind[-1].timestamp)
+    """Maior timestamp entre TODAS as amostras de todas as séries (inclusive as de valor ausente).
+
+    Não assume ordem: o feed RTSW do SWPC vem do mais novo para o mais antigo, então o último
+    elemento da lista seria a amostra mais ANTIGA (docs/SIO_CORE_SPEC.md §4, ``t_end``).
+    """
+    candidates: List[datetime] = [
+        item.timestamp
+        for series in (snapshot.kp_series, snapshot.dst_series, snapshot.imf, snapshot.solar_wind)
+        for item in series
+    ]
     if not candidates:
         return default if default is not None else datetime.now(tz=timezone.utc)
     return max(candidates)
