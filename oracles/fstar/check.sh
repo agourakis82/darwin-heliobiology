@@ -52,8 +52,8 @@ if [ "${1:-}" = "--negative" ]; then
     { head -n $((first-1)) "$src"; sed -n "${start},$((next-1))p" "$src"; } > "$tmp/Helio.Props.Negative.fst"
     if fstar.exe --warn_error -328 "$tmp/Helio.Props.Negative.fst" >"$tmp/out$n" 2>&1; then
       echo "NOT rejected: NEG-$n (F* ACCEPTED a false lemma)" >&2; ok=0
-    elif grep -q '^\* Error' "$tmp/out$n"; then
-      echo "rejected NEG-$n: $(grep -m1 -A1 '^\* Error' "$tmp/out$n" | tr '\n' ' ' | cut -c1-110)"
+    elif grep -q '\* Error' "$tmp/out$n"; then
+      echo "rejected NEG-$n: $(grep -m1 -A1 '\* Error' "$tmp/out$n" | tr '\n' ' ' | cut -c1-110)"
     else
       echo "NEG-$n failed for a non-verification reason:" >&2; cat "$tmp/out$n" >&2; ok=0
     fi
