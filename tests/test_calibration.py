@@ -76,7 +76,7 @@ def test_heliomind_scores_custom_divisors():
 
     default_scores = compute_heliomind_scores_from_omni(df)["score"].dropna()
     # Divisores menores → scores maiores
-    smaller_divs = (9.0, 150.0, 10.0, 150_000.0, 1.25)
+    smaller_divs = (9.0, 40.0, 5.0, 3.0, 1.0)  # pressão em nPa
     higher_scores = compute_heliomind_scores_from_omni(df, divisors=smaller_divs)["score"].dropna()
 
     assert higher_scores.mean() > default_scores.mean()

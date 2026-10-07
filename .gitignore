@@ -13,3 +13,6 @@ htmlcov/
 dist/
 build/
 .ipynb_checkpoints/
+data/raw/swpc/
+data/raw/omni2/
+build/

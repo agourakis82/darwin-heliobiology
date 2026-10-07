@@ -1,0 +1,5 @@
+// Driver do gate: GEMEOS Sounio (ADR-009 §1). `build/gate/cmd.txt` -> stdout.
+use drv_common::{drv_run}
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    drv_run(1)
+}

@@ -123,3 +123,29 @@ def test_fetch_and_persist_omni_csv(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     df = pd.read_csv(result.output_path)
     assert len(df) == 3
     assert "kp_index" in df.columns
+
+
+def test_kp_is_divided_by_ten_on_read_and_fill_is_nan() -> None:
+    text = "\n".join(
+        [
+            _make_omni2_line(hour=0, kp=27),
+            _make_omni2_line(hour=1, kp=99),  # fill → ausente
+            _make_omni2_line(hour=2, kp=0),  # Kp real 0.0 é DADO, não ausente
+        ]
+    )
+    df = _parse_omni2_text(text)
+    assert df["kp_index"].iloc[0] == pytest.approx(2.7)
+    assert np.isnan(df["kp_index"].iloc[1])
+    assert df["kp_index"].iloc[2] == 0.0
+
+
+def test_ensure_kp_scale_is_idempotent_and_in_range() -> None:
+    from darwin_heliobiology.datasets.omni import ensure_kp_scale
+
+    legacy = pd.Series([0.0, 27.0, 90.0, np.nan])
+    once = ensure_kp_scale(legacy)
+    twice = ensure_kp_scale(once)
+    assert once.dropna().between(0.0, 9.0).all()
+    pd.testing.assert_series_equal(once, twice)
+    already_real = pd.Series([0.0, 2.7, 9.0])
+    pd.testing.assert_series_equal(ensure_kp_scale(already_real), already_real)

@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
+from darwin_heliobiology.datasets.omni import ensure_kp_scale
+
 
 @dataclass(slots=True)
 class GeomagneticSignature:
@@ -20,9 +22,10 @@ class GeomagneticSignature:
     mean_kp: float
     mean_dst: float
     mean_bz: float
-    storm_count: int
+    storm_hours: int  # horas com Kp ≥ 5 (apenas horas com Kp válido)
     min_dst: float
     bz_southward_fraction: float
+    valid_hours: int = 0  # horas com Kp válido (denominador de storm_hours)
 
 
 @dataclass(slots=True)
@@ -34,6 +37,9 @@ class AtlasResult:
     year_range: Tuple[int, int]
     metadata: Dict[str, Any]
 
+
+#: Limiar de tempestade geomagnética (Kp real, escala 0–9).
+STORM_KP = 5.0
 
 _RESOLUTION_FREQ = {
     "daily": "D",
@@ -84,6 +90,8 @@ def build_geomagnetic_atlas(
         raise ValueError(f"Colunas ausentes no DataFrame: {missing}")
 
     df = df.copy()
+    # Kp legado (×10) é levado para 0–9; Kp ≥ 5 só faz sentido na escala real.
+    df["kp_index"] = ensure_kp_scale(df["kp_index"])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.sort_values("timestamp")
 
@@ -99,18 +107,21 @@ def build_geomagnetic_atlas(
         dst = group["dst_nt"].dropna()
         bz = group["bz_gsm_nt"].dropna()
 
-        storm_count = int((kp >= 5.0).sum()) if not kp.empty else 0
-        bz_south = float((bz < 0).mean()) if not bz.empty else 0.0
+        # Ausente NUNCA vira 0: sem dado válido a estatística é NaN.
+        storm_hours = int((kp >= STORM_KP).sum())
+        bz_south = float((bz < 0).mean()) if not bz.empty else float("nan")
+        nan = float("nan")
 
         signatures.append(
             GeomagneticSignature(
                 period_label=_period_label(period_end, resolution),
-                mean_kp=float(kp.mean()) if not kp.empty else 0.0,
-                mean_dst=float(dst.mean()) if not dst.empty else 0.0,
-                mean_bz=float(bz.mean()) if not bz.empty else 0.0,
-                storm_count=storm_count,
-                min_dst=float(dst.min()) if not dst.empty else 0.0,
+                mean_kp=float(kp.mean()) if not kp.empty else nan,
+                mean_dst=float(dst.mean()) if not dst.empty else nan,
+                mean_bz=float(bz.mean()) if not bz.empty else nan,
+                storm_hours=storm_hours,
+                min_dst=float(dst.min()) if not dst.empty else nan,
                 bz_southward_fraction=bz_south,
+                valid_hours=len(kp),
             )
         )
 
@@ -135,7 +146,8 @@ def atlas_to_dataframe(result: AtlasResult) -> pd.DataFrame:
                 "mean_kp": sig.mean_kp,
                 "mean_dst": sig.mean_dst,
                 "mean_bz": sig.mean_bz,
-                "storm_count": sig.storm_count,
+                "storm_hours": sig.storm_hours,
+                "valid_hours": sig.valid_hours,
                 "min_dst": sig.min_dst,
                 "bz_southward_fraction": sig.bz_southward_fraction,
             }

@@ -1,0 +1,105 @@
+// sio/passport_case.sio — caso de entrada e impressao do passaporte (compartilhado: so E/S).
+//
+// Arquivo de caso (spec §7): LAGMAX, B, SEED (<= 2^63-1), N, X <n valores>, Y <n valores>;
+// linhas de continuacao comecam com o token isolado `+`.
+
+use num::{NumOut, Tok, parse_dec, parse_int_tok, find_nl, next_tok, tok_is, print_tok, print_tok_opt}
+
+pub struct PassCase {
+    pub lag_max: i64,
+    pub b: i64,
+    pub seed: i64,
+    pub n: i64,
+    pub x: i64,
+    pub y: i64,
+}
+
+pub fn pass_load(path: string, c: &!PassCase) with IO, Mut, Panic, Div, Alloc {
+    let s = read_file(path)
+    let n = str_len(s)
+    var pos: i64 = 0
+    var tk = Tok { a: 0, b: 0 }
+    var num = NumOut { v: 0.0, ok: 0 }
+    var iok: i64 = 0
+    var which: i64 = 0          // 1 = X, 2 = Y (alvo corrente das linhas de valores)
+    var nx: i64 = 0
+    var ny: i64 = 0
+    // 1a passada: cabecalhos (N define a alocacao)
+    var cur0: i64 = 0
+    while cur0 < n {
+        let le = find_nl(s, n, cur0)
+        var cur = cur0
+        if next_tok(s, &!cur, le, &!tk) {
+            if tok_is(s, &tk, "N") {
+                if next_tok(s, &!cur, le, &!tk) { c.n = parse_int_tok(s, tk.a, tk.b, &!iok) }
+            }
+        }
+        cur0 = le + 1
+    }
+    c.x = heap_alloc(8 * (c.n + 1)) as i64
+    c.y = heap_alloc(8 * (c.n + 1)) as i64
+    let xp = c.x as *mut f64
+    let yp = c.y as *mut f64
+    pos = 0
+    while pos < n {
+        let le = find_nl(s, n, pos)
+        var cur = pos
+        if next_tok(s, &!cur, le, &!tk) {
+            var vals = false
+            if tok_is(s, &tk, "LAGMAX") {
+                if next_tok(s, &!cur, le, &!tk) { c.lag_max = parse_int_tok(s, tk.a, tk.b, &!iok) }
+            } else { if tok_is(s, &tk, "B") {
+                if next_tok(s, &!cur, le, &!tk) { c.b = parse_int_tok(s, tk.a, tk.b, &!iok) }
+            } else { if tok_is(s, &tk, "SEED") {
+                if next_tok(s, &!cur, le, &!tk) { c.seed = parse_int_tok(s, tk.a, tk.b, &!iok) }
+            } else { if tok_is(s, &tk, "X") { which = 1; vals = true
+            } else { if tok_is(s, &tk, "Y") { which = 2; vals = true
+            } else { if tok_is(s, &tk, "+") { vals = true } } } } } }
+            if vals {
+                while next_tok(s, &!cur, le, &!tk) {
+                    parse_dec(s, tk.a, tk.b, &!num)
+                    if num.ok == 1 {
+                        if which == 1 && nx < c.n { write_f64(xp, nx, num.v); nx = nx + 1 }
+                        if which == 2 && ny < c.n { write_f64(yp, ny, num.v); ny = ny + 1 }
+                    }
+                }
+            }
+        }
+        pos = le + 1
+    }
+    if nx != c.n || ny != c.n { print("PASSPORT_CASE_SHORT_ARRAYS\n") }
+}
+
+pub fn pass_case_new() -> PassCase with Alloc, Mut, Panic, Div {
+    PassCase { lag_max: 0, b: 0, seed: 0, n: 0, x: 0, y: 0 }
+}
+
+pub struct PassOut {
+    pub t_obs: f64,
+    pub lag_obs: i64,
+    pub p: f64,
+    pub nulls: i64,        // ponteiro f64 [B]
+    pub b: i64,
+    pub q: [f64; 4],       // q50 q90 q95 q99 do conjunto {T_b}
+}
+
+pub fn pass_out_new() -> PassOut with Alloc, Mut, Panic, Div {
+    PassOut { t_obs: 0.0, lag_obs: 0, p: 0.0, nulls: 0, b: 0, q: [0.0; 4] }
+}
+
+pub fn pass_print(c: &PassCase, o: &PassOut) with IO, Mut, Panic, Div {
+    print("n "); print_int(c.n); print("\n")
+    print("T_obs "); print_tok(o.t_obs); print("\n")
+    print("lag_obs "); print_int(o.lag_obs); print("\n")
+    print("p "); print_tok(o.p); print("\n")
+    let np = o.nulls as *mut f64
+    var b: i64 = 0
+    while b < o.b {
+        print("null "); print_int(b); print(" "); print_tok(read_f64(np, b)); print("\n")
+        b = b + 1
+    }
+    print("null_q50 "); print_tok(o.q[0]); print("\n")
+    print("null_q90 "); print_tok(o.q[1]); print("\n")
+    print("null_q95 "); print_tok(o.q[2]); print("\n")
+    print("null_q99 "); print_tok(o.q[3]); print("\n")
+}

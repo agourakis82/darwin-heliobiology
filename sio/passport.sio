@@ -1,0 +1,150 @@
+// sio/passport.sio — correlacao cruzada 0..lag_max e p-valor de permutacao (spec §7). PRINCIPAL.
+//
+// r(l): Pearson por SOMAS CENTRADAS (medias dos segmentos, depois sxx, syy, sxy).
+// Permutacao por blocos de 24 h (Fisher-Yates sobre a ordem dos blocos), B permutacoes,
+// PRNG SplitMix64 com seed fixa e fluxo por permutacao: estado0 = seed ^ ((b+1) * GOLDEN).
+// p = (1 + #{T_b >= T_obs - 1e-12}) / (B + 1).
+
+use num::{sqrt_f64, abs_f64}
+use calibration::{heapsort, quantile_sorted}
+use passport_case::{PassCase, PassOut}
+
+// u64 NAO e usado: em Madaros `>>` sobre parametro u64 e aritmetico e `>` e sinalizado
+// (docs/divergences/D06, D07). SplitMix64 e feito em i64 (multiplicacao/soma/xor sao as mesmas
+// em complemento de dois) com deslocamento logico explicito.
+//   GOLDEN = 0x9E3779B97F4A7C15, C1 = 0xBF58476D1CE4E5B9, C2 = 0x94D049BB133111EB (como i64).
+fn golden() -> i64 { -7046029254386353131 }
+
+// deslocamento logico a direita (1 <= k <= 63) em i64
+fn lsr(x: i64, k: i64) -> i64 {
+    let mask = ((1 << (63 - k)) - 1) * 2 + 1
+    (x >> k) & mask
+}
+
+// SplitMix64: avanca *state e devolve a saida
+fn splitmix(state: &!i64) -> i64 with Mut, Panic, Div {
+    *state = *state + golden()
+    var z: i64 = *state
+    z = (z ^ lsr(z, 30)) * (-4658895280553007687)
+    z = (z ^ lsr(z, 27)) * (-7723592293110705685)
+    z ^ lsr(z, 31)
+}
+
+// Pearson no lag l entre x[0..m) e y[l..n); ok=0 se o lag e ignorado.
+fn pearson_lag(x: *mut f64, y: *mut f64, n: i64, lag: i64, ok: &!i64) -> f64 with Mut, Panic, Div {
+    *ok = 0
+    let m = n - lag
+    if m < 10 { return 0.0 }
+    var sx: f64 = 0.0
+    var sy: f64 = 0.0
+    var i: i64 = 0
+    while i < m {
+        sx = sx + read_f64(x, i)
+        sy = sy + read_f64(y, i + lag)
+        i = i + 1
+    }
+    let mx = sx / (m as f64)
+    let my = sy / (m as f64)
+    var sxx: f64 = 0.0
+    var syy: f64 = 0.0
+    var sxy: f64 = 0.0
+    i = 0
+    while i < m {
+        let dx = read_f64(x, i) - mx
+        let dy = read_f64(y, i + lag) - my
+        sxx = sxx + dx * dx
+        syy = syy + dy * dy
+        sxy = sxy + dx * dy
+        i = i + 1
+    }
+    // desvio-padrao populacional < 1e-12 -> lag ignorado
+    if sqrt_f64(sxx / (m as f64)) < 1.0e-12 { return 0.0 }
+    if sqrt_f64(syy / (m as f64)) < 1.0e-12 { return 0.0 }
+    *ok = 1
+    sxy / sqrt_f64(sxx * syy)
+}
+
+// T = max |r(l)| e o menor lag que o atinge
+fn max_abs_r(x: *mut f64, y: *mut f64, n: i64, lag_max: i64, lag_out: &!i64) -> f64 with Mut, Panic, Div {
+    var best: f64 = 0.0
+    var best_lag: i64 = 0
+    var have = false
+    var lag: i64 = 0
+    while lag <= lag_max {
+        var ok: i64 = 0
+        let r = pearson_lag(x, y, n, lag, &!ok)
+        if ok == 1 {
+            let a = abs_f64(r)
+            if !have || a > best { best = a; best_lag = lag; have = true }
+        }
+        lag = lag + 1
+    }
+    *lag_out = best_lag
+    best
+}
+
+// y' = blocos de 24 de y na ordem embaralhada
+fn permute_blocks(y: *mut f64, n: i64, yp: *mut f64, order: *mut i64, state: &!i64) with Mut, Panic, Div {
+    let k = (n + 23) / 24
+    var i: i64 = 0
+    while i < k { write_i64(order, i, i); i = i + 1 }
+    i = k - 1
+    while i >= 1 {
+        let r = splitmix(state)
+        let j = lsr(r, 11) % (i + 1)
+        let tmp = read_i64(order, i)
+        write_i64(order, i, read_i64(order, j))
+        write_i64(order, j, tmp)
+        i = i - 1
+    }
+    var pos: i64 = 0
+    var bi: i64 = 0
+    while bi < k {
+        let blk = read_i64(order, bi)
+        let a = blk * 24
+        var e = a + 24
+        if e > n { e = n }
+        var q = a
+        while q < e {
+            write_f64(yp, pos, read_f64(y, q))
+            pos = pos + 1
+            q = q + 1
+        }
+        bi = bi + 1
+    }
+}
+
+pub fn passport_run(c: &PassCase, out: &!PassOut) with Mut, Panic, Div, Alloc {
+    let x = c.x as *mut f64
+    let y = c.y as *mut f64
+    var lag0: i64 = 0
+    let t_obs = max_abs_r(x, y, c.n, c.lag_max, &!lag0)
+    out.t_obs = t_obs
+    out.lag_obs = lag0
+    let nulls = heap_alloc(8 * (c.b + 1)) as *mut f64
+    let yp = heap_alloc(8 * (c.n + 1)) as *mut f64
+    let order = heap_alloc(8 * (c.n / 24 + 2)) as *mut i64
+    var hits: i64 = 0
+    var b: i64 = 0
+    while b < c.b {
+        var st: i64 = c.seed ^ ((b + 1) * golden())
+        permute_blocks(y, c.n, yp, order, &!st)
+        var lagb: i64 = 0
+        let tb = max_abs_r(x, yp, c.n, c.lag_max, &!lagb)
+        write_f64(nulls, b, tb)
+        if tb >= t_obs - 1.0e-12 { hits = hits + 1 }
+        b = b + 1
+    }
+    out.nulls = nulls as i64
+    out.b = c.b
+    out.p = ((1 + hits) as f64) / ((c.b + 1) as f64)
+    // quantis do conjunto {T_b} (ordenacao completa, spec §6)
+    let tmp = heap_alloc(8 * (c.b + 1)) as *mut f64
+    var i: i64 = 0
+    while i < c.b { write_f64(tmp, i, read_f64(nulls, i)); i = i + 1 }
+    heapsort(tmp, c.b)
+    out.q[0] = quantile_sorted(tmp, c.b, 0.50)
+    out.q[1] = quantile_sorted(tmp, c.b, 0.90)
+    out.q[2] = quantile_sorted(tmp, c.b, 0.95)
+    out.q[3] = quantile_sorted(tmp, c.b, 0.99)
+}

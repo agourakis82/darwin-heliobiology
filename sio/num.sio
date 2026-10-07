@@ -1,0 +1,271 @@
+// sio/num.sio — primitivas compartilhadas do núcleo (spec §0, docs/SIO_CORE_SPEC.md)
+//
+// Leitura decimal exata, calendário, token numérico exato, lexer de linhas.
+// Compartilhado entre o núcleo e os gêmeos APENAS para E/S e calendário; toda a
+// aritmética estatística é reimplementada em sio/twin/ (ver ADR-009 §1).
+//
+// Restrições medidas do Madaros que moldam este arquivo:
+//   * aggregates (struct) precisam ser alocados no heap: declarar `Alloc`;
+//   * nunca nomear um struct `Box` (sombreia o builtin e dá SIGSEGV em tempo de execução);
+//   * ausência é flag explícita (`ok`), jamais um valor numérico.
+
+extern "C" {
+    fn sqrt(x: f64) -> f64
+}
+
+pub fn sqrt_f64(x: f64) -> f64 { sqrt(x) }
+
+pub fn is_nan(x: f64) -> bool { x != x }
+
+pub fn abs_f64(x: f64) -> f64 { if x < 0.0 { 0.0 - x } else { x } }
+
+pub fn min_f64(a: f64, b: f64) -> f64 { if b < a { b } else { a } }
+
+pub fn max_f64(a: f64, b: f64) -> f64 { if b > a { b } else { a } }
+
+pub fn clip01(x: f64) -> f64 {
+    if x < 0.0 { return 0.0 }
+    if x > 1.0 { return 1.0 }
+    x
+}
+
+// ---------------------------------------------------------------------------
+// Token numérico exato (spec §0.1): +n p +e  com n inteiro em [2^52, 2^53)
+// ---------------------------------------------------------------------------
+
+pub fn print_tok(x: f64) with IO, Mut, Div, Panic {
+    if x != x { print("nan"); return }
+    if x > 1.7976931348623157e308 { print("+inf"); return }
+    if x < -1.7976931348623157e308 { print("-inf"); return }
+    if x == 0.0 { print("0"); return }
+    var a = x
+    if x < 0.0 {
+        print("-")
+        a = 0.0 - x
+    } else {
+        print("+")
+    }
+    var e: i64 = 0
+    while a >= 2.0 {
+        a = a / 2.0
+        e = e + 1
+    }
+    while a < 1.0 {
+        a = a * 2.0
+        e = e - 1
+    }
+    let n = (a * 4503599627370496.0) as i64
+    print_int(n)
+    print("p")
+    if e < 0 {
+        print("-")
+        print_int(0 - e)
+    } else {
+        print("+")
+        print_int(e)
+    }
+}
+
+pub fn print_tok_opt(ok: i64, x: f64) with IO, Mut, Div, Panic {
+    if ok == 0 { print("NA") } else { print_tok(x) }
+}
+
+// ---------------------------------------------------------------------------
+// Calendário (algoritmo de Howard Hinnant; só para anos >= 1970 usamos divisão positiva)
+// ---------------------------------------------------------------------------
+
+pub fn days_from_civil(y0: i64, m: i64, d: i64) -> i64 with Mut, Div, Panic {
+    var y = y0
+    if m <= 2 { y = y - 1 }
+    let era = y / 400
+    let yoe = y - era * 400
+    var mp = m - 3
+    if m <= 2 { mp = m + 9 }
+    let doy = (153 * mp + 2) / 5 + d - 1
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    era * 146097 + doe - 719468
+}
+
+pub struct Ymd { pub y: i64, pub m: i64, pub d: i64 }
+
+pub fn civil_from_days(z0: i64, out: &!Ymd) with Mut, Div, Panic {
+    let z = z0 + 719468
+    let era = z / 146097
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    var y = yoe + era * 400
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let d = doy - (153 * mp + 2) / 5 + 1
+    var m = mp + 3
+    if mp >= 10 { m = mp - 9 }
+    if m <= 2 { y = y + 1 }
+    out.y = y
+    out.m = m
+    out.d = d
+}
+
+// ---------------------------------------------------------------------------
+// Lexer de linhas/tokens sobre uma string inteira
+// ---------------------------------------------------------------------------
+
+pub struct Tok { pub a: i64, pub b: i64 }
+
+pub fn is_space(c: i64) -> bool { c == 32 || c == 9 || c == 13 }
+
+// Fim da linha que começa em `pos` (índice do '\n' ou n).
+pub fn find_nl(s: string, n: i64, pos: i64) -> i64 with Mut, Div, Panic {
+    var i = pos
+    while i < n {
+        if str_char_at(s, i) == 10 { return i }
+        i = i + 1
+    }
+    n
+}
+
+// Próximo token dentro de [pos, le). `#` inicia comentário até o fim da linha.
+pub fn next_tok(s: string, pos: &!i64, le: i64, t: &!Tok) -> bool with Mut, Div, Panic {
+    var i = *pos
+    while i < le && is_space(str_char_at(s, i) as i64) { i = i + 1 }
+    if i >= le { *pos = i; return false }
+    if str_char_at(s, i) == 35 { *pos = le; return false }
+    t.a = i
+    while i < le && !is_space(str_char_at(s, i) as i64) { i = i + 1 }
+    t.b = i
+    *pos = i
+    true
+}
+
+// token == literal?
+pub fn tok_is(s: string, t: &Tok, lit: string) -> bool with Mut, Div, Panic {
+    let ln = str_len(lit)
+    if t.b - t.a != ln { return false }
+    var k: i64 = 0
+    while k < ln {
+        if str_char_at(s, t.a + k) != str_char_at(lit, k) { return false }
+        k = k + 1
+    }
+    true
+}
+
+pub fn print_tok_text(s: string, t: &Tok) with IO, Mut, Div, Panic {
+    var k = t.a
+    while k < t.b {
+        print_char(str_char_at(s, k) as i64)
+        k = k + 1
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Decimal -> f64. Mantissa inteira (até 18 dígitos significativos) e uma única
+// divisão/multiplicação por 10^k (k <= 22), logo exatamente arredondada (igual
+// a strtod) para os formatos OMNI2/SWPC (<= 17 dígitos).
+// ---------------------------------------------------------------------------
+
+pub struct NumOut { pub v: f64, pub ok: i64 }
+
+pub fn pow10_f(k: i64) -> f64 with Mut, Div, Panic {
+    var r: f64 = 1.0
+    var i: i64 = 0
+    while i < k {
+        r = r * 10.0
+        i = i + 1
+    }
+    r
+}
+
+// Converte s[a..b). ok=1 se for um decimal bem formado.
+pub fn parse_dec(s: string, a: i64, b: i64, out: &!NumOut) with Mut, Div, Panic {
+    out.ok = 0
+    out.v = 0.0
+    var i = a
+    if i >= b { return }
+    var neg = false
+    let c0 = str_char_at(s, i) as i64
+    if c0 == 45 { neg = true; i = i + 1 } else { if c0 == 43 { i = i + 1 } }
+    var mant: i64 = 0
+    var nd: i64 = 0          // dígitos significativos acumulados
+    var exp10: i64 = 0
+    var seen: i64 = 0        // dígitos vistos (inclui zeros à esquerda)
+    var dot = false
+    while i < b {
+        let c = str_char_at(s, i) as i64
+        if c >= 48 && c <= 57 {
+            seen = seen + 1
+            if nd < 18 {
+                mant = mant * 10 + (c - 48)
+                if mant > 0 { nd = nd + 1 }
+                if dot { exp10 = exp10 - 1 }
+            } else {
+                if !dot { exp10 = exp10 + 1 }
+            }
+        } else {
+            if c == 46 && !dot { dot = true } else { break }
+        }
+        i = i + 1
+    }
+    if seen == 0 { return }
+    if i < b {
+        let c = str_char_at(s, i) as i64
+        if c == 101 || c == 69 {
+            i = i + 1
+            var eneg = false
+            if i < b {
+                let cs = str_char_at(s, i) as i64
+                if cs == 45 { eneg = true; i = i + 1 } else { if cs == 43 { i = i + 1 } }
+            }
+            var ev: i64 = 0
+            var ed: i64 = 0
+            while i < b {
+                let cd = str_char_at(s, i) as i64
+                if cd < 48 || cd > 57 { return }
+                ev = ev * 10 + (cd - 48)
+                ed = ed + 1
+                i = i + 1
+            }
+            if ed == 0 { return }
+            if eneg { exp10 = exp10 - ev } else { exp10 = exp10 + ev }
+        } else {
+            return
+        }
+    }
+    var v = mant as f64
+    if exp10 < 0 {
+        var k = 0 - exp10
+        while k > 22 {
+            v = v / 1.0e22
+            k = k - 22
+        }
+        v = v / pow10_f(k)
+    } else {
+        var k = exp10
+        while k > 22 {
+            v = v * 1.0e22
+            k = k - 22
+        }
+        v = v * pow10_f(k)
+    }
+    if neg { v = 0.0 - v }
+    out.v = v
+    out.ok = 1
+}
+
+// Inteiro decimal sem sinal/ com sinal; retorna valor (ok em out.ok).
+pub fn parse_int_tok(s: string, a: i64, b: i64, ok: &!i64) -> i64 with Mut, Div, Panic {
+    *ok = 0
+    var i = a
+    if i >= b { return 0 }
+    var neg = false
+    let c0 = str_char_at(s, i) as i64
+    if c0 == 45 { neg = true; i = i + 1 } else { if c0 == 43 { i = i + 1 } }
+    if i >= b { return 0 }
+    var v: i64 = 0
+    while i < b {
+        let c = str_char_at(s, i) as i64
+        if c < 48 || c > 57 { return 0 }
+        v = v * 10 + (c - 48)
+        i = i + 1
+    }
+    *ok = 1
+    if neg { 0 - v } else { v }
+}

@@ -1,0 +1,25 @@
+# block_prefix<TAB>label_prefix<TAB>tol[<TAB>floor]   (tolerancia relativa; padrao 1e-12; spec §0.2)
+# floor (4a coluna, opcional) e a escala absoluta minima do denominador: |a-b| <= tol*max(|a|,|b|,floor).
+# Padrao 1e-6.
+# Cada linha com tolerancia maior que 1e-12 traz a CAUSA no comentario acima dela.
+# Quantis e somas longas (>= 1000 termos) usam 1e-9, como pede a tarefa.
+# CAUSA: p50/p90/p95/p99 por selecao x ordenacao x F#: mesma interpolacao, mas as medias
+# (soma sequencial x Kahan) e o std (Welford x duas passadas) sobre 52 608 termos diferem em ULPs.
+calib	mean	1e-9
+calib	p50	1e-9
+calib	p90	1e-9
+calib	p95	1e-9
+calib	p99	1e-9
+calib	suggested	1e-9
+# CAUSA: media diaria/mensal/trimestral: somas de ate ~2 200 termos (trimestre) por soma simples x Kahan.
+atlas quarterly	period	1e-9
+atlas monthly	period	1e-9
+# CAUSA (floor 1e-2): a media de Bz de um dia cujas 24 leituras (|Bz| ate ~10 nT) se cancelam
+# MATEMATICAMENTE da soma exata 0; a soma simples deixa +-1e-16 e a de Kahan outro ruido de ULP. O erro
+# ABSOLUTO e ~1e-15 (limitado por eps*sum|x|/n), mas o relativo e arbitrario perto de 0; por isso o
+# denominador usa a escala 1e-2 em vez de 1e-6. (4 dos 2192 dias do OMNI 2020-2025.)
+atlas daily	period	1e-12	1e-2
+# CAUSA: correlacao de Pearson por somas centradas x produto de z-scores, sobre n=2400 e n*lags >> 1000 termos;
+# cada T_b e o maximo de 49 correlacoes e as formulacoes diferem em ULPs acumulados.
+passport	T_obs	1e-9
+passport	null	1e-9

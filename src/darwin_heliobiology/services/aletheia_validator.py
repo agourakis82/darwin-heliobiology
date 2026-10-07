@@ -76,6 +76,8 @@ class AletheiaValidator:
         """Converte correlação de Pearson *r* em Fisher-z com variância 1/(n-3)."""
         if n < 4:
             raise ValueError("É necessário n >= 4 para a transformação Fisher-z")
+        if not -1.0 < r < 1.0:
+            raise ValueError("Fisher-z exige |r| < 1 (r = ±1 tem z infinito)")
         z = 0.5 * math.log((1 + r) / (1 - r))
         variance = 1.0 / (n - 3)
         return StudyEffect(

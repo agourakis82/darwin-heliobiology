@@ -1,0 +1,401 @@
+// sio/swpc.sio — feeds NOAA SWPC (spec §3).
+//
+// JSON so no subconjunto usado: lista plana de objetos (valor numero, string, bool ou null) e,
+// na forma legada do Dst, lista de listas (tabela). Nao e um parser JSON geral: aninhamento,
+// escapes de string e unicode estao FORA do subconjunto (stdlib/json tem limite de 4096 bytes
+// e 256 linhas, entao nao serve para o RTSW de 1,7-2,9 MB).
+//
+// `time_tag` sem fuso = UTC. Campo nulo / -9999 / ausente = AUSENTE (bit de validade em `m`).
+
+use num::{NumOut, Tok, parse_dec, parse_int_tok, days_from_civil, min_f64, max_f64, print_tok_opt}
+
+// kinds: 0 Kp 3h | 1 Dst objeto | 2 Dst tabela legada | 3 RTSW mag | 4 RTSW vento
+pub fn kind_nfields(kind: i64) -> i64 {
+    if kind == 3 { return 3 }
+    if kind == 4 { return 2 }
+    1
+}
+
+pub struct Swpc {
+    pub kind: i64,
+    pub n: i64,
+    pub cap: i64,
+    pub nf: i64,
+    pub t: i64,
+    pub f: i64,
+    pub m: i64,
+    pub skipped: i64,   // registros descartados (active != true) ou malformados
+}
+
+pub fn swpc_new(kind: i64, cap: i64) -> Swpc with Alloc, Mut, Panic, Div {
+    var c = cap
+    if c < 1 { c = 1 }
+    let nf = kind_nfields(kind)
+    let t = heap_alloc(8 * c) as *mut i64
+    let f = heap_alloc(8 * 3 * c) as *mut f64
+    let m = heap_alloc(8 * c) as *mut i64
+    Swpc { kind: kind, n: 0, cap: c, nf: nf, t: t as i64, f: f as i64, m: m as i64, skipped: 0 }
+}
+
+pub fn swpc_t(r: &Swpc, i: i64) -> i64 with Mut, Panic, Div {
+    let p = r.t as *mut i64
+    read_i64(p, i)
+}
+
+pub fn swpc_valid(r: &Swpc, fld: i64, i: i64) -> bool with Mut, Panic, Div {
+    let p = r.m as *mut i64
+    ((read_i64(p, i) >> fld) & 1) == 1
+}
+
+pub fn swpc_get(r: &Swpc, fld: i64, i: i64) -> f64 with Mut, Panic, Div {
+    let p = r.f as *mut f64
+    read_f64(p, fld * r.cap + i)
+}
+
+// ---------------------------------------------------------------------------
+// time_tag -> segundos UTC
+// ---------------------------------------------------------------------------
+
+fn dig(s: string, i: i64, ok: &!i64) -> i64 with Mut, Panic, Div {
+    let c = str_char_at(s, i) as i64
+    if c < 48 || c > 57 { *ok = 0; return 0 }
+    c - 48
+}
+
+fn num_n(s: string, a: i64, w: i64, ok: &!i64) -> i64 with Mut, Panic, Div {
+    var v: i64 = 0
+    var k: i64 = 0
+    while k < w {
+        v = v * 10 + dig(s, a + k, ok)
+        k = k + 1
+    }
+    v
+}
+
+// "YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM|-HH:MM]"; ok=0 se malformado.
+pub fn parse_time(s: string, a: i64, b: i64, ok: &!i64) -> i64 with Mut, Panic, Div {
+    *ok = 1
+    if b - a < 19 { *ok = 0; return 0 }
+    let y = num_n(s, a, 4, ok)
+    let mo = num_n(s, a + 5, 2, ok)
+    let d = num_n(s, a + 8, 2, ok)
+    let h = num_n(s, a + 11, 2, ok)
+    let mi = num_n(s, a + 14, 2, ok)
+    let se = num_n(s, a + 17, 2, ok)
+    if str_char_at(s, a + 4) != 45 || str_char_at(s, a + 7) != 45 { *ok = 0 }
+    let sep = str_char_at(s, a + 10) as i64
+    if sep != 84 && sep != 32 { *ok = 0 }
+    if mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || se > 60 { *ok = 0 }
+    var i = a + 19
+    if i < b && str_char_at(s, i) == 46 {
+        i = i + 1
+        while i < b && str_char_at(s, i) >= 48 && str_char_at(s, i) <= 57 { i = i + 1 }
+    }
+    var off: i64 = 0
+    if i < b {
+        let c = str_char_at(s, i) as i64
+        if c == 90 {
+            i = i + 1
+        } else {
+            if c == 43 || c == 45 {
+                if b - i < 6 { *ok = 0; return 0 }
+                let oh = num_n(s, i + 1, 2, ok)
+                var om: i64 = 0
+                if str_char_at(s, i + 3) == 58 {
+                    om = num_n(s, i + 4, 2, ok)
+                    i = i + 6
+                } else {
+                    om = num_n(s, i + 3, 2, ok)
+                    i = i + 5
+                }
+                off = oh * 3600 + om * 60
+                if c == 45 { off = 0 - off }
+            } else {
+                *ok = 0
+            }
+        }
+    }
+    if i != b { *ok = 0 }
+    if *ok == 0 { return 0 }
+    days_from_civil(y, mo, d) * 86400 + h * 3600 + mi * 60 + se - off
+}
+
+// ---------------------------------------------------------------------------
+// Lexer JSON minimo
+// ---------------------------------------------------------------------------
+
+fn skip_ws(s: string, n: i64, pos: &!i64) with Mut, Panic, Div {
+    var i = *pos
+    while i < n {
+        let c = str_char_at(s, i) as i64
+        if c == 32 || c == 9 || c == 10 || c == 13 { i = i + 1 } else { break }
+    }
+    *pos = i
+}
+
+// Le uma string "..." (sem escapes). t = conteudo sem aspas. false se nao for string.
+fn read_str(s: string, n: i64, pos: &!i64, t: &!Tok) -> bool with Mut, Panic, Div {
+    skip_ws(s, n, pos)
+    var i = *pos
+    if i >= n || str_char_at(s, i) != 34 { return false }
+    i = i + 1
+    t.a = i
+    while i < n && str_char_at(s, i) != 34 {
+        if str_char_at(s, i) == 92 { i = i + 1 }   // escape: pula o proximo (fora do subconjunto)
+        i = i + 1
+    }
+    if i >= n { return false }
+    t.b = i
+    *pos = i + 1
+    true
+}
+
+// Valor escalar. kind: 0 nulo, 1 numero (tok), 2 string (tok), 3 true, 4 false, -1 invalido.
+fn read_scalar(s: string, n: i64, pos: &!i64, t: &!Tok) -> i64 with Mut, Panic, Div {
+    skip_ws(s, n, pos)
+    var i = *pos
+    if i >= n { return -1 }
+    let c = str_char_at(s, i) as i64
+    if c == 34 {
+        if read_str(s, n, pos, t) { return 2 }
+        return -1
+    }
+    let a = i
+    while i < n {
+        let d = str_char_at(s, i) as i64
+        if d == 44 || d == 125 || d == 93 || d == 32 || d == 10 || d == 13 || d == 9 { break }
+        i = i + 1
+    }
+    t.a = a
+    t.b = i
+    *pos = i
+    if t.b - t.a == 4 && str_char_at(s, a) == 110 { return 0 }          // null
+    if t.b - t.a == 4 && str_char_at(s, a) == 116 { return 3 }          // true
+    if t.b - t.a == 5 && str_char_at(s, a) == 102 { return 4 }          // false
+    1
+}
+
+fn key_is(s: string, t: &Tok, lit: string) -> bool with Mut, Panic, Div {
+    let ln = str_len(lit)
+    if t.b - t.a != ln { return false }
+    var k: i64 = 0
+    while k < ln {
+        if str_char_at(s, t.a + k) != str_char_at(lit, k) { return false }
+        k = k + 1
+    }
+    true
+}
+
+fn field_name_idx(kind: i64, s: string, t: &Tok) -> i64 with Mut, Panic, Div {
+    if kind == 0 { if key_is(s, t, "Kp") { return 0 } }
+    if kind == 1 { if key_is(s, t, "dst") { return 0 } }
+    if kind == 3 {
+        if key_is(s, t, "bx_gsm") { return 0 }
+        if key_is(s, t, "by_gsm") { return 1 }
+        if key_is(s, t, "bz_gsm") { return 2 }
+    }
+    if kind == 4 {
+        if key_is(s, t, "proton_speed") { return 0 }
+        if key_is(s, t, "proton_density") { return 1 }
+    }
+    -1
+}
+
+// Converte um escalar para (ok, valor) numerico: numero ou string numerica; nulo/-9999 -> ausente.
+fn scalar_num(s: string, sk: i64, t: &Tok, out: &!NumOut) with Mut, Panic, Div {
+    out.ok = 0
+    out.v = 0.0
+    if sk == 1 || sk == 2 {
+        parse_dec(s, t.a, t.b, out)
+        if out.ok == 1 && out.v == -9999.0 { out.ok = 0 }
+    }
+}
+
+// Acrescenta um registro
+fn push_rec(r: &!Swpc, t: i64, vals: &[f64; 3], mask: i64) with Mut, Panic, Div {
+    if r.n >= r.cap { return }
+    let tp = r.t as *mut i64
+    let fp = r.f as *mut f64
+    let mp = r.m as *mut i64
+    let i = r.n
+    write_i64(tp, i, t)
+    write_i64(mp, i, mask)
+    var c: i64 = 0
+    while c < 3 {
+        write_f64(fp, c * r.cap + i, vals[c as usize])
+        c = c + 1
+    }
+    r.n = r.n + 1
+}
+
+// Parser de feeds de objetos (kinds 0, 1, 3, 4).
+fn parse_objects(r: &!Swpc, s: string, n: i64) with Mut, Panic, Div, Alloc {
+    var pos: i64 = 0
+    skip_ws(s, n, &!pos)
+    if pos >= n || str_char_at(s, pos) != 91 { r.skipped = r.skipped + 1; return }
+    pos = pos + 1
+    var key = Tok { a: 0, b: 0 }
+    var tv = Tok { a: 0, b: 0 }
+    var num = NumOut { v: 0.0, ok: 0 }
+    var more = true
+    while more {
+        skip_ws(s, n, &!pos)
+        if pos >= n { break }
+        let c = str_char_at(s, pos) as i64
+        if c == 93 { break }
+        if c == 44 { pos = pos + 1; continue }
+        if c != 123 { r.skipped = r.skipped + 1; break }
+        pos = pos + 1
+        var t_ok: i64 = 0
+        var t_val: i64 = 0
+        var active: i64 = 1            // feeds sem campo `active` valem como ativos
+        var vals: [f64; 3] = [0.0; 3]
+        var mask: i64 = 0
+        var in_obj = true
+        while in_obj {
+            skip_ws(s, n, &!pos)
+            if pos >= n { break }
+            let d = str_char_at(s, pos) as i64
+            if d == 125 { pos = pos + 1; in_obj = false; continue }
+            if d == 44 { pos = pos + 1; continue }
+            if !read_str(s, n, &!pos, &!key) { r.skipped = r.skipped + 1; in_obj = false; break }
+            skip_ws(s, n, &!pos)
+            if pos < n && str_char_at(s, pos) == 58 { pos = pos + 1 }
+            let sk = read_scalar(s, n, &!pos, &!tv)
+            if sk < 0 { r.skipped = r.skipped + 1; in_obj = false; break }
+            if key_is(s, &key, "time_tag") {
+                if sk == 2 { t_val = parse_time(s, tv.a, tv.b, &!t_ok) }
+            } else {
+                if key_is(s, &key, "active") {
+                    if sk == 3 { active = 1 } else { active = 0 }
+                } else {
+                    let fi = field_name_idx(r.kind, s, &key)
+                    if fi >= 0 {
+                        scalar_num(s, sk, &tv, &!num)
+                        if num.ok == 1 {
+                            vals[fi as usize] = num.v
+                            mask = mask | (1 << fi)
+                        }
+                    }
+                }
+            }
+        }
+        if t_ok == 1 && active == 1 {
+            push_rec(r, t_val, &vals, mask)
+        } else {
+            r.skipped = r.skipped + 1
+        }
+    }
+}
+
+// Parser da tabela legada (kind 2): [["time_tag","dst"],["2024-..","-5"], ...]
+fn parse_table(r: &!Swpc, s: string, n: i64) with Mut, Panic, Div, Alloc {
+    var pos: i64 = 0
+    skip_ws(s, n, &!pos)
+    if pos >= n || str_char_at(s, pos) != 91 { r.skipped = r.skipped + 1; return }
+    pos = pos + 1
+    var tv = Tok { a: 0, b: 0 }
+    var tv2 = Tok { a: 0, b: 0 }
+    var num = NumOut { v: 0.0, ok: 0 }
+    var row_ix: i64 = 0
+    while true {
+        skip_ws(s, n, &!pos)
+        if pos >= n { break }
+        let c = str_char_at(s, pos) as i64
+        if c == 93 { break }
+        if c == 44 { pos = pos + 1; continue }
+        if c != 91 { r.skipped = r.skipped + 1; break }
+        pos = pos + 1
+        let sk1 = read_scalar(s, n, &!pos, &!tv)
+        skip_ws(s, n, &!pos)
+        if pos < n && str_char_at(s, pos) == 44 { pos = pos + 1 }
+        let sk2 = read_scalar(s, n, &!pos, &!tv2)
+        skip_ws(s, n, &!pos)
+        // consome o resto da linha ate ']'
+        while pos < n && str_char_at(s, pos) != 93 { pos = pos + 1 }
+        if pos < n { pos = pos + 1 }
+        if row_ix == 0 && sk1 == 2 && key_is(s, &tv, "time_tag") {
+            row_ix = row_ix + 1       // cabecalho: descartado
+            continue
+        }
+        row_ix = row_ix + 1
+        var t_ok: i64 = 0
+        var tval: i64 = 0
+        if sk1 == 2 { tval = parse_time(s, tv.a, tv.b, &!t_ok) }
+        if t_ok == 0 { r.skipped = r.skipped + 1; continue }
+        var vals: [f64; 3] = [0.0; 3]
+        var mask: i64 = 0
+        scalar_num(s, sk2, &tv2, &!num)
+        if num.ok == 1 { vals[0] = num.v; mask = 1 }
+        push_rec(r, tval, &vals, mask)
+    }
+}
+
+pub fn swpc_count_cap(path: string) -> i64 with IO, Mut, Panic, Div {
+    let s = read_file(path)
+    let n = str_len(s)
+    var cnt: i64 = 0
+    var i: i64 = 0
+    while i < n {
+        let c = str_char_at(s, i) as i64
+        if c == 123 || c == 91 { cnt = cnt + 1 }
+        i = i + 1
+    }
+    cnt + 1
+}
+
+pub fn swpc_load(r: &!Swpc, path: string) with IO, Mut, Panic, Div, Alloc {
+    let s = read_file(path)
+    let n = str_len(s)
+    if r.kind == 2 { parse_table(r, s, n) } else { parse_objects(r, s, n) }
+}
+
+pub fn swpc_field_name(kind: i64, fld: i64) -> string {
+    if kind == 0 { return "kp" }
+    if kind == 1 || kind == 2 { return "dst" }
+    if kind == 3 {
+        if fld == 0 { return "bx" }
+        if fld == 1 { return "by" }
+        return "bz"
+    }
+    if fld == 0 { return "v" }
+    "n"
+}
+
+// Resumo do spec §3.
+pub fn swpc_print_summary(r: &Swpc) with IO, Mut, Panic, Div {
+    print("n_records "); print_int(r.n); print("\n")
+    print("skipped "); print_int(r.skipped); print("\n")
+    if r.n > 0 {
+        print("t_first "); print_int(swpc_t(r, 0)); print("\n")
+        print("t_last "); print_int(swpc_t(r, r.n - 1)); print("\n")
+    }
+    var f: i64 = 0
+    while f < r.nf {
+        let name = swpc_field_name(r.kind, f)
+        var cnt: i64 = 0
+        var ab: i64 = 0
+        var sum: f64 = 0.0
+        var mn: f64 = 0.0
+        var mx: f64 = 0.0
+        var i: i64 = 0
+        while i < r.n {
+            if swpc_valid(r, f, i) {
+                let x = swpc_get(r, f, i)
+                if cnt == 0 { mn = x; mx = x } else { mn = min_f64(mn, x); mx = max_f64(mx, x) }
+                sum = sum + x
+                cnt = cnt + 1
+            } else {
+                ab = ab + 1
+            }
+            i = i + 1
+        }
+        let has = if cnt > 0 { 1 } else { 0 }
+        print("count "); print(name); print(" "); print_int(cnt); print("\n")
+        print("absent "); print(name); print(" "); print_int(ab); print("\n")
+        print("sum "); print(name); print(" "); print_tok_opt(has, sum); print("\n")
+        print("min "); print(name); print(" "); print_tok_opt(has, mn); print("\n")
+        print("max "); print(name); print(" "); print_tok_opt(has, mx); print("\n")
+        f = f + 1
+    }
+}

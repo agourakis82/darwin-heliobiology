@@ -1,0 +1,11 @@
+// Madaros (e lean_single): `>>` sobre um parametro u64 e ARITMETICO (propaga o bit de sinal).
+// Esperado (0xE220A8397B1DCDAF >> 40, logico) = 14819496.
+// Madaros: linha 1 = 14819496 (local), linha 3 = -1957720 (parametro de funcao). lean_single: -1957720 em todas.
+// Consequencia: SplitMix64 / xorshift em u64 saem errados quando o estado passa por funcao.
+fn shr(a: u64, k: i64) -> u64 { a >> k }
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    let a: u64 = 0xE220A8397B1DCDAF
+    print_int((a >> 40) as i64); print("\n")
+    print_int(shr(a, 40) as i64); print("\n")
+    return 0
+}

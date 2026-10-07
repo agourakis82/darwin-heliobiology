@@ -1,0 +1,3 @@
+# homogeneo: Q < k-1  =>  tau2 = 0 e I2 = 0 ; um unico estudo repetido 2x
+STUDY a 0.20 0.05
+STUDY b 0.22 0.05

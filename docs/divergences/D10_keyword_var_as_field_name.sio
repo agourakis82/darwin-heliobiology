@@ -1,0 +1,9 @@
+// Madaros aceita `var` como nome de campo de struct; lean_single rejeita:
+//   error: missing field in struct literal / unknown field access
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    var g = G { mu: 1.0, var: 2.0 }
+    print_f64(g.var)
+    print("\n")
+    return 0
+}
+struct G { mu: f64, var: f64 }

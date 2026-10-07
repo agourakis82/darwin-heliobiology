@@ -1,0 +1,2 @@
+NOW 12345
+# expected: t_end 12345, all counts 0, all comps NA, class 3, alerts 0

@@ -1,0 +1,11 @@
+// Madaros x lean_single: `print_int(floor(7.9) as i64)` (extern "C" floor + cast).
+// Madaros imprime A, 7, B.  lean_single imprime A e PARA em silencio (sem mensagem de erro; `souc run` sai com rc 1) -- as linhas
+// seguintes nunca saem.
+extern "C" { fn floor(x: f64) -> f64 }
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    print("A\n")
+    print_int(floor(7.9) as i64)
+    print("\n")
+    print("B\n")
+    return 0
+}

@@ -1,0 +1,12 @@
+# comandos compartilhados por nucleo, gemeo e (os que ele implementa) F#. @OMNI@ = arquivo OMNI do gate.
+helio tests/fixtures/helio/window.txt
+helio tests/fixtures/helio/na.txt
+helio tests/fixtures/helio/one_kp.txt
+helio tests/fixtures/helio/empty.txt
+helio tests/fixtures/helio/storm.txt
+calib tests/fixtures/omni2/atlas.dat
+calib @OMNI@
+meta tests/fixtures/meta/k3.txt
+meta tests/fixtures/meta/homog.txt
+meta tests/fixtures/meta/cardio6.txt
+meta tests/fixtures/meta/twelve.txt

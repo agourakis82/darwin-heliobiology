@@ -1,0 +1,14 @@
+// Madaros x lean_single: xorshift64* com u64.
+// Madaros imprime 1934872821 (correto, conferido por aritmetica de inteiros arbitrarios).
+// lean_single imprime -212610827.
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    var s: u64 = 88172645463325252
+    let m: u64 = 0x2545F4914F6CDD1D
+    s = s ^ (s >> 12)
+    s = s ^ (s << 25)
+    s = s ^ (s >> 27)
+    let r: u64 = s * m
+    print_int((r >> 33) as i64)
+    print("\n")
+    return 0
+}

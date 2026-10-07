@@ -1,0 +1,121 @@
+// sio/helio_case.sio — E/S compartilhada do HelioMind Index (nucleo e gemeo).
+//
+// Aqui vive SO o formato de entrada (arquivo de caso, spec §4), as series com validade e a
+// impressao do bloco de saida. Nenhuma estatistica: o calculo fica em helio_index.sio e em
+// twin/helio_twin.sio, independentes entre si.
+
+use num::{NumOut, Tok, parse_dec, parse_int_tok, find_nl, next_tok, tok_is, print_tok_opt}
+
+// Serie temporal com validade explicita (ausente != 0).
+pub struct Ser { pub n: i64, pub cap: i64, pub t: i64, pub v: i64, pub ok: i64 }
+
+pub fn ser_new(cap: i64) -> Ser with Alloc, Mut, Panic, Div {
+    var c = cap
+    if c < 1 { c = 1 }
+    let t = heap_alloc(8 * c) as *mut i64
+    let v = heap_alloc(8 * c) as *mut f64
+    let ok = heap_alloc(8 * c) as *mut i64
+    Ser { n: 0, cap: c, t: t as i64, v: v as i64, ok: ok as i64 }
+}
+
+pub fn ser_push(s: &!Ser, t: i64, v: f64, ok: i64) with Mut, Panic, Div {
+    if s.n >= s.cap { return }
+    write_i64(s.t as *mut i64, s.n, t)
+    write_f64(s.v as *mut f64, s.n, v)
+    write_i64(s.ok as *mut i64, s.n, ok)
+    s.n = s.n + 1
+}
+
+pub fn ser_t(s: &Ser, i: i64) -> i64 with Mut, Panic, Div { read_i64(s.t as *mut i64, i) }
+pub fn ser_v(s: &Ser, i: i64) -> f64 with Mut, Panic, Div { read_f64(s.v as *mut f64, i) }
+pub fn ser_ok(s: &Ser, i: i64) -> i64 with Mut, Panic, Div { read_i64(s.ok as *mut i64, i) }
+
+// Resultado: componentes 0..4 = kp, dst, bz, pressure, variability; 5 = score.
+pub struct HelioOut {
+    pub t_end: i64,
+    pub okc: [i64; 6],
+    pub val: [f64; 6],
+    pub cls: i64,
+    pub alerts: i64,
+    pub nwin: [i64; 4],
+}
+
+pub fn helio_out_new() -> HelioOut with Alloc, Mut, Panic, Div {
+    HelioOut { t_end: 0, okc: [0; 6], val: [0.0; 6], cls: 3, alerts: 0, nwin: [0; 4] }
+}
+
+pub struct HelioCase {
+    pub now: i64,
+    pub kp: Ser,
+    pub dst: Ser,
+    pub bz: Ser,
+    pub wn: Ser,
+    pub wv: Ser,
+}
+
+// Le um valor `<decimal|NA>` do token; ok=0 para NA (ou malformado).
+fn read_val(s: string, t: &Tok, out: &!NumOut) with Mut, Panic, Div {
+    out.ok = 0
+    out.v = 0.0
+    if t.b - t.a == 2 && str_char_at(s, t.a) == 78 && str_char_at(s, t.a + 1) == 65 { return }
+    parse_dec(s, t.a, t.b, out)
+}
+
+pub fn helio_load_case(path: string, c: &!HelioCase) with IO, Mut, Panic, Div, Alloc {
+    let s = read_file(path)
+    let n = str_len(s)
+    var pos: i64 = 0
+    var tk = Tok { a: 0, b: 0 }
+    var num = NumOut { v: 0.0, ok: 0 }
+    var iok: i64 = 0
+    while pos < n {
+        let le = find_nl(s, n, pos)
+        var cur = pos
+        if next_tok(s, &!cur, le, &!tk) {
+            if tok_is(s, &tk, "NOW") {
+                if next_tok(s, &!cur, le, &!tk) { c.now = parse_int_tok(s, tk.a, tk.b, &!iok) }
+            } else {
+                var which: i64 = -1
+                if tok_is(s, &tk, "KP") { which = 0 }
+                if tok_is(s, &tk, "DST") { which = 1 }
+                if tok_is(s, &tk, "BZ") { which = 2 }
+                if tok_is(s, &tk, "WIND") { which = 3 }
+                if which >= 0 {
+                    var t: i64 = 0
+                    if next_tok(s, &!cur, le, &!tk) { t = parse_int_tok(s, tk.a, tk.b, &!iok) }
+                    if next_tok(s, &!cur, le, &!tk) {
+                        read_val(s, &tk, &!num)
+                        if which == 0 { ser_push(&!c.kp, t, num.v, num.ok) }
+                        if which == 1 { ser_push(&!c.dst, t, num.v, num.ok) }
+                        if which == 2 { ser_push(&!c.bz, t, num.v, num.ok) }
+                        if which == 3 {
+                            ser_push(&!c.wn, t, num.v, num.ok)
+                            var nv = NumOut { v: 0.0, ok: 0 }
+                            if next_tok(s, &!cur, le, &!tk) { read_val(s, &tk, &!nv) }
+                            ser_push(&!c.wv, t, nv.v, nv.ok)
+                        }
+                    }
+                }
+            }
+        }
+        pos = le + 1
+    }
+}
+
+pub fn helio_case_new(cap: i64) -> HelioCase with Alloc, Mut, Panic, Div {
+    HelioCase { now: 0, kp: ser_new(cap), dst: ser_new(cap), bz: ser_new(cap), wn: ser_new(cap), wv: ser_new(cap) }
+}
+
+pub fn helio_print_out(o: &HelioOut) with IO, Mut, Panic, Div {
+    print("t_end "); print_int(o.t_end); print("\n")
+    print("n_window "); print_int(o.nwin[0]); print(" "); print_int(o.nwin[1]); print(" ")
+    print_int(o.nwin[2]); print(" "); print_int(o.nwin[3]); print("\n")
+    print("comp kp "); print_tok_opt(o.okc[0], o.val[0]); print("\n")
+    print("comp dst "); print_tok_opt(o.okc[1], o.val[1]); print("\n")
+    print("comp bz "); print_tok_opt(o.okc[2], o.val[2]); print("\n")
+    print("comp pressure "); print_tok_opt(o.okc[3], o.val[3]); print("\n")
+    print("comp variability "); print_tok_opt(o.okc[4], o.val[4]); print("\n")
+    print("score "); print_tok_opt(o.okc[5], o.val[5]); print("\n")
+    print("class "); print_int(o.cls); print("\n")
+    print("alerts "); print_int(o.alerts); print("\n")
+}

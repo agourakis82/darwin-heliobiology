@@ -1,0 +1,159 @@
+// sio/twin/calib_twin.sio — GEMEO da calibracao (ADR-009 §1).
+//
+// Diferencas deliberadas em relacao a sio/calibration.sio:
+//   * quantil por SELECAO (quickselect de Hoare, pivo = mediana de 3) em vez de ordenacao
+//     completa: so as estatisticas de ordem `lo` e `lo+1` sao localizadas; a de ordem `lo+1`
+//     e o minimo da particao a direita;
+//   * media por soma de Kahan;
+//   * janela do kp_var por DOIS PONTEIROS (avanca o inicio enquanto t <= corte) e desvio em
+//     duas passadas, em vez da varredura para tras com Welford.
+// Compartilha com o nucleo so E/S (calib_case.sio, omni.sio).
+
+use num::{sqrt_f64}
+use omni::{Omni, omni_t, omni_valid, omni_get, col_bz, col_n, col_v, col_kp, col_dst}
+use calib_case::{CalibOut}
+
+fn swap(a: *mut f64, i: i64, j: i64) with Mut, Panic, Div {
+    let t = read_f64(a, i)
+    write_f64(a, i, read_f64(a, j))
+    write_f64(a, j, t)
+}
+
+fn median3(a: *mut f64, lo: i64, hi: i64) -> f64 with Mut, Panic, Div {
+    let mid = lo + (hi - lo) / 2
+    let x = read_f64(a, lo)
+    let y = read_f64(a, mid)
+    let z = read_f64(a, hi)
+    if (x <= y && y <= z) || (z <= y && y <= x) { return y }
+    if (y <= x && x <= z) || (z <= x && x <= y) { return x }
+    z
+}
+
+// Apos a chamada, a[k] e a k-esima estatistica de ordem (0-based) e a[0..k) <= a[k] <= a[k+1..n).
+fn quickselect(a: *mut f64, n: i64, k: i64) with Mut, Panic, Div {
+    var lo: i64 = 0
+    var hi: i64 = n - 1
+    while lo < hi {
+        let pivot = median3(a, lo, hi)
+        var i = lo
+        var j = hi
+        while i <= j {
+            while read_f64(a, i) < pivot { i = i + 1 }
+            while read_f64(a, j) > pivot { j = j - 1 }
+            if i <= j {
+                swap(a, i, j)
+                i = i + 1
+                j = j - 1
+            }
+        }
+        if k <= j { hi = j } else { if k >= i { lo = i } else { return } }
+    }
+}
+
+// quantil (spec §6) por selecao; destroi a ordem de a
+fn quantile_select(a: *mut f64, n: i64, q: f64) -> f64 with Mut, Panic, Div {
+    let h = q * ((n - 1) as f64)
+    let lo = h as i64
+    quickselect(a, n, lo)
+    let x0 = read_f64(a, lo)
+    if lo >= n - 1 { return x0 }
+    // a (lo+1)-esima estatistica de ordem = minimo da parte a direita de lo
+    var m = read_f64(a, lo + 1)
+    var i = lo + 2
+    while i < n {
+        let v = read_f64(a, i)
+        if v < m { m = v }
+        i = i + 1
+    }
+    let frac = h - (lo as f64)
+    x0 + frac * (m - x0)
+}
+
+fn kahan_sum(a: *mut f64, n: i64) -> f64 with Mut, Panic, Div {
+    var s: f64 = 0.0
+    var c: f64 = 0.0
+    var i: i64 = 0
+    while i < n {
+        let y = read_f64(a, i) - c
+        let t = s + y
+        c = (t - s) - y
+        s = t
+        i = i + 1
+    }
+    s
+}
+
+fn fill_series_twin(o: &Omni, s: i64, buf: *mut f64) -> i64 with Mut, Panic, Div {
+    var k: i64 = 0
+    if s == 4 {
+        var l: i64 = 0
+        var i: i64 = 0
+        while i < o.n {
+            let cutoff = omni_t(o, i) - 43200
+            while l < i && omni_t(o, l) <= cutoff { l = l + 1 }
+            // janela = registros l..i (todos com t > corte); duas passadas
+            var cnt: i64 = 0
+            var sum: f64 = 0.0
+            var j = l
+            while j <= i {
+                if omni_valid(o, col_kp(), j) { cnt = cnt + 1; sum = sum + omni_get(o, col_kp(), j) }
+                j = j + 1
+            }
+            if cnt >= 2 {
+                let mean = sum / (cnt as f64)
+                var acc: f64 = 0.0
+                j = l
+                while j <= i {
+                    if omni_valid(o, col_kp(), j) {
+                        let d = omni_get(o, col_kp(), j) - mean
+                        acc = acc + d * d
+                    }
+                    j = j + 1
+                }
+                write_f64(buf, k, sqrt_f64(acc / ((cnt - 1) as f64)))
+                k = k + 1
+            }
+            i = i + 1
+        }
+        return k
+    }
+    var i: i64 = 0
+    while i < o.n {
+        if s == 0 && omni_valid(o, col_kp(), i) {
+            write_f64(buf, k, omni_get(o, col_kp(), i)); k = k + 1
+        }
+        if s == 1 && omni_valid(o, col_dst(), i) {
+            let d = omni_get(o, col_dst(), i)
+            write_f64(buf, k, if d < 0.0 { 0.0 - d } else { 0.0 }); k = k + 1
+        }
+        if s == 2 && omni_valid(o, col_bz(), i) {
+            let b = omni_get(o, col_bz(), i)
+            write_f64(buf, k, if b < 0.0 { 0.0 - b } else { 0.0 }); k = k + 1
+        }
+        if s == 3 && omni_valid(o, col_n(), i) && omni_valid(o, col_v(), i) {
+            let dn = omni_get(o, col_n(), i)
+            let vv = omni_get(o, col_v(), i)
+            write_f64(buf, k, 1.6726e-6 * (dn * (vv * vv))); k = k + 1
+        }
+        i = i + 1
+    }
+    k
+}
+
+pub fn calib_run_twin(o: &Omni, out: &!CalibOut) with Mut, Panic, Div, Alloc {
+    out.n_records = o.n
+    let buf = heap_alloc(8 * (o.n + 1)) as *mut f64
+    var s: i64 = 0
+    while s < 5 {
+        let cnt = fill_series_twin(o, s, buf)
+        out.count[s as usize] = cnt
+        if cnt > 0 {
+            out.mean[s as usize] = kahan_sum(buf, cnt) / (cnt as f64)
+            out.q[(s * 4) as usize] = quantile_select(buf, cnt, 0.50)
+            out.q[(s * 4 + 1) as usize] = quantile_select(buf, cnt, 0.90)
+            out.q[(s * 4 + 2) as usize] = quantile_select(buf, cnt, 0.95)
+            out.q[(s * 4 + 3) as usize] = quantile_select(buf, cnt, 0.99)
+        }
+        s = s + 1
+    }
+}

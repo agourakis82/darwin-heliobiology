@@ -1,0 +1,7 @@
+# two Kp samples: mean 3.5 -> kp = 3.5/9 ; std1 = sqrt(4.5) = 2.1213 -> /1.57 > 1 -> clipped to 1
+KP   100 2.0
+KP   200 5.0
+DST  150 -100
+BZ   150 -17.4
+WIND 150 4 2000
+# expected: dst 1 bz 1 pressure 1 variability 1 ; score = .35*3.5/9 + .65 = 0.786111 ; class 2 ; alerts 2+4+8+16 = 30

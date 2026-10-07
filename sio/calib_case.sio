@@ -1,0 +1,62 @@
+// sio/calib_case.sio — resultado e impressao da calibracao (nucleo e gemeo compartilham so isto).
+//
+// Series: 0 kp, 1 dst_abs, 2 bz_south, 3 pressure, 4 kp_var.
+// Por serie: count, mean, p50, p90, p95, p99 (ausentes se count = 0), suggested, target_ok.
+
+use num::{print_tok_opt, max_f64, abs_f64}
+
+pub struct CalibOut {
+    pub n_records: i64,
+    pub count: [i64; 5],
+    pub mean: [f64; 5],
+    pub q: [f64; 20],       // 4 quantis por serie: p50, p90, p95, p99
+}
+
+pub fn calib_out_new() -> CalibOut with Alloc, Mut, Panic, Div {
+    CalibOut { n_records: 0, count: [0; 5], mean: [0.0; 5], q: [0.0; 20] }
+}
+
+pub fn series_name(s: i64) -> string {
+    if s == 0 { return "kp" }
+    if s == 1 { return "dst_abs" }
+    if s == 2 { return "bz_south" }
+    if s == 3 { return "pressure" }
+    "kp_var"
+}
+
+pub fn series_target(s: i64) -> f64 {
+    if s == 0 { return 9.0 }
+    if s == 1 { return 78.0 }
+    if s == 2 { return 8.7 }
+    if s == 3 { return 7.30 }
+    1.57
+}
+
+// divisor sugerido: Kp fixo em 9.0; demais max(p99, 1.0)
+pub fn suggested(o: &CalibOut, s: i64) -> f64 with Mut, Panic, Div {
+    if s == 0 { return 9.0 }
+    max_f64(o.q[(s * 4 + 3) as usize], 1.0)
+}
+
+pub fn calib_print(o: &CalibOut) with IO, Mut, Panic, Div {
+    print("n_records "); print_int(o.n_records); print("\n")
+    var s: i64 = 0
+    while s < 5 {
+        let name = series_name(s)
+        let has = if o.count[s as usize] > 0 { 1 } else { 0 }
+        print("count "); print(name); print(" "); print_int(o.count[s as usize]); print("\n")
+        print("mean "); print(name); print(" "); print_tok_opt(has, o.mean[s as usize]); print("\n")
+        print("p50 "); print(name); print(" "); print_tok_opt(has, o.q[(s * 4) as usize]); print("\n")
+        print("p90 "); print(name); print(" "); print_tok_opt(has, o.q[(s * 4 + 1) as usize]); print("\n")
+        print("p95 "); print(name); print(" "); print_tok_opt(has, o.q[(s * 4 + 2) as usize]); print("\n")
+        print("p99 "); print(name); print(" "); print_tok_opt(has, o.q[(s * 4 + 3) as usize]); print("\n")
+        var sg_ok: i64 = has
+        if s == 0 { sg_ok = 1 }
+        let sg = suggested(o, s)
+        print("suggested "); print(name); print(" "); print_tok_opt(sg_ok, sg); print("\n")
+        var tok: i64 = 0
+        if sg_ok == 1 && abs_f64(sg - series_target(s)) <= 0.005 { tok = 1 }
+        print("target_ok "); print(name); print(" "); print_int(tok); print("\n")
+        s = s + 1
+    }
+}

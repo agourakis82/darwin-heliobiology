@@ -48,6 +48,25 @@ FILL_VALUES: Dict[str, float] = {
 }
 
 
+#: OMNI2 armazena Kp multiplicado por 10 (0–90). A leitura SEMPRE divide por 10.
+KP_OMNI_SCALE = 10.0
+
+#: Acima disto uma série de Kp só pode estar na escala ×10 (Kp real ≤ 9.0).
+_KP_REAL_MAX = 9.0
+
+
+def ensure_kp_scale(kp: pd.Series) -> pd.Series:
+    """Leva uma série de Kp legada para a escala real 0–9 (idempotente).
+
+    Só deve ser usada em arquivos antigos cuja escala não é conhecida. O parser
+    OMNI (:func:`_parse_omni2_text`) já divide por 10 na leitura. Decide pela
+    série inteira (máximo > 9.0 ⇒ ×10) e nunca valor a valor. NaN é preservado.
+    """
+    if kp.notna().any() and float(kp.max()) > _KP_REAL_MAX:
+        return kp / KP_OMNI_SCALE
+    return kp
+
+
 @dataclass(slots=True)
 class OMNIIngestionResult:
     """Resultado da ingestão de dados OMNI2."""
@@ -95,11 +114,14 @@ def _parse_omni2_text(raw_text: str) -> pd.DataFrame:
     # Remover colunas auxiliares
     df = df.drop(columns=["year", "doy", "hour"])
 
-    # Converter tipos e substituir fill values por NaN
+    # Converter tipos e substituir fill values por NaN (ausente NUNCA vira 0)
     for col, fill_val in FILL_VALUES.items():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
             df.loc[df[col] >= fill_val, col] = np.nan
+
+    # Kp vem ×10 no OMNI2: dividir na leitura (o fill 99 já virou NaN acima).
+    df["kp_index"] = df["kp_index"] / KP_OMNI_SCALE
 
     return df
 

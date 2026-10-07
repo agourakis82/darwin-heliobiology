@@ -1,0 +1,7 @@
+# tempestade: todos os componentes saturam -> class 2, alerts 15 (variabilidade 0.37 nao alerta)
+KP 100000 9.0
+KP 99000 8.0
+KP 98000 9.0
+DST 100000 -300
+BZ 100000 -30.0
+WIND 100000 30.0 900.0

@@ -9,16 +9,24 @@ Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.2 e data/processed/calibration_constants.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
-from darwin_heliobiology.models.solar import IMFVector, SolarObservation, SolarWindSample
+from darwin_heliobiology.models.solar import SolarObservation
 
 FloatArray = NDArray[np.float64]
+
+
+#: Largura da janela de agregação (por TEMPO, não por número de amostras).
+WINDOW_HOURS = 12
+
+#: Constante de pressão dinâmica: P[nPa] = 1.6726e-6 · n[cm⁻³] · v²[km/s]².
+PRESSURE_COEFF_NPA = 1.6726e-6
 
 
 @dataclass(slots=True)
@@ -32,17 +40,27 @@ class NormalizationConstants:
     kp_divisor: float = 9.0  # Escala NOAA oficial 0-9 (grau A)
     dst_divisor: float = 78.0  # p99 de abs(min(Dst,0)), OMNI2 2020-2025 (grau B)
     bz_divisor: float = 8.7  # p99 de max(-Bz,0), OMNI2 2020-2025 (grau B)
-    pressure_divisor: float = 4_364_643.0  # p99 de ρv², OMNI2 2020-2025 (grau B)
-    variability_divisor: float = 1.57  # p99 de std(Kp,12h), OMNI2 2020-2025 (grau B)
+    pressure_divisor: float = 7.30  # p99 de 1.6726e-6·n·v² [nPa], OMNI2 2020-2025 (grau B)
+    variability_divisor: float = 1.57  # p99 de std(Kp,12h), ddof=1 (grau B)
 
 
 #: Constantes default, calibradas empiricamente.
 DEFAULT_CONSTANTS = NormalizationConstants()
 
+#: Pesos default (kp, dst, bz, pressão, variabilidade). Somam 1.0.
+WEIGHTS = (0.35, 0.25, 0.20, 0.15, 0.05)
+
+#: Rótulo de classificação quando o score não pode ser calculado.
+UNAVAILABLE = "indisponivel"
+
 
 @dataclass(slots=True)
 class HelioMindComponents:
-    """Componentes normalizados do HelioMind Index (0.0 – 1.0)."""
+    """Componentes normalizados do HelioMind Index (0.0 – 1.0).
+
+    ``NaN`` significa AUSENTE (nenhuma amostra válida na janela). Ausente nunca
+    é convertido em 0.0: um componente zerado diria "calmo" onde não há dado.
+    """
 
     kp_activity: float
     dst_storm_intensity: float
@@ -69,62 +87,52 @@ def compute_helio_mind_index(
 ) -> HelioMindIndexResult:
     """Calcula o HelioMind Index a partir de um ``SolarObservation``.
 
-    Parameters
-    ----------
-    snapshot:
-        Observação consolidada retornada por :class:`~darwin_heliobiology.core.solar_atlas.SolarAtlas`.
-    constants:
-        Constantes de normalização. Default: calibradas contra OMNI2 2020-2025.
-
-    Returns
-    -------
-    HelioMindIndexResult
-        Estrutura com score composto, componentes normalizados e alertas interpretáveis.
+    A janela é de ``WINDOW_HOURS`` horas contadas a partir da amostra mais recente
+    de qualquer série (por tempo). Amostras NaN são descartadas. Se algum
+    componente não tem nenhuma amostra válida, o score é ``NaN`` e a classe é
+    ``"indisponivel"`` — nunca um valor fabricado.
     """
     c = constants or DEFAULT_CONSTANTS
 
-    kp_values = _extract_index_values([idx.value for idx in snapshot.kp_series])
-    dst_values = _extract_index_values([idx.value for idx in snapshot.dst_series])
-    bz_values = _extract_imf_component(snapshot.imf)
-    wind_speed = _extract_wind_component(snapshot.solar_wind, attr="speed_kms")
-    wind_density = _extract_wind_component(snapshot.solar_wind, attr="density_pcm3")
+    timestamp = _latest_timestamp(snapshot, default=datetime.now(tz=timezone.utc))
+    cutoff = timestamp - timedelta(hours=WINDOW_HOURS)
+
+    kp_values = _window_values(snapshot.kp_series, cutoff, lambda i: i.value)
+    dst_values = _window_values(snapshot.dst_series, cutoff, lambda i: i.value)
+    bz_values = _window_values(snapshot.imf, cutoff, lambda v: v.bz_nt)
+    pressure_values = _window_values(
+        snapshot.solar_wind,
+        cutoff,
+        lambda w: PRESSURE_COEFF_NPA * w.density_pcm3 * w.speed_kms**2,
+    )
 
     components = HelioMindComponents(
         kp_activity=_normalize_kp(kp_values, divisor=c.kp_divisor),
         dst_storm_intensity=_normalize_dst(dst_values, divisor=c.dst_divisor),
         bz_reconnection=_normalize_bz(bz_values, divisor=c.bz_divisor),
-        solar_wind_pressure=_normalize_wind_pressure(
-            wind_speed, wind_density, divisor=c.pressure_divisor
-        ),
+        solar_wind_pressure=_normalize_wind_pressure(pressure_values, divisor=c.pressure_divisor),
         variability=_normalize_variability(kp_values, divisor=c.variability_divisor),
     )
 
     # Pesos default (grau C quando calibrados via WHO, grau D quando arbitrários).
-    # A ordenação relativa (Kp > Dst > Bz) reflete a frequência de uso na
-    # literatura epidemiológica.  Para pesos calibrados via regressão em painel
-    # WHO (mortalidade × atividade solar), usar ``who_calibration.py``.
     # Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.1.
-    score = float(
-        np.clip(
-            0.35 * components.kp_activity
-            + 0.25 * components.dst_storm_intensity
-            + 0.20 * components.bz_reconnection
-            + 0.15 * components.solar_wind_pressure
-            + 0.05 * components.variability,
-            0.0,
-            1.0,
-        )
+    parts = (
+        components.kp_activity,
+        components.dst_storm_intensity,
+        components.bz_reconnection,
+        components.solar_wind_pressure,
+        components.variability,
     )
-    classification = _classify(score)
+    if any(math.isnan(p) for p in parts):
+        score = float("nan")
+        classification = UNAVAILABLE
+    else:
+        score = float(np.clip(sum(w * p for w, p in zip(WEIGHTS, parts, strict=True)), 0.0, 1.0))
+        classification = _classify(score)
     alerts = _build_alerts(components)
 
-    timestamp = _latest_timestamp(
-        snapshot,
-        default=datetime.now(tz=timezone.utc),
-    )
-
     metadata = dict(snapshot.metadata or {})
-    metadata.setdefault("window_hours", metadata.get("window_hours", 24))
+    metadata["window_hours"] = WINDOW_HOURS
 
     return HelioMindIndexResult(
         timestamp=timestamp,
@@ -141,65 +149,59 @@ def compute_helio_mind_index(
 # ---------------------------------------------------------------------------
 
 
-def _extract_index_values(values: List[float]) -> FloatArray:
-    if not values:
-        return np.zeros(0, dtype=np.float64)
-    return np.asarray(values, dtype=np.float64)
+def _window_values(
+    items: Sequence[Any], cutoff: datetime, getter: Callable[[Any], float]
+) -> FloatArray:
+    """Valores finitos das amostras com ``timestamp > cutoff`` (janela por tempo)."""
+    out: List[float] = []
+    for item in items:
+        if item.timestamp <= cutoff:
+            continue
+        v = getter(item)
+        if v is None or not math.isfinite(v):
+            continue
+        out.append(float(v))
+    return np.asarray(out, dtype=np.float64)
 
 
-def _extract_imf_component(vectors: List[IMFVector]) -> FloatArray:
-    if not vectors:
-        return np.zeros(0, dtype=np.float64)
-    return np.asarray([vec.bz_nt for vec in vectors], dtype=np.float64)
-
-
-def _extract_wind_component(samples: List[SolarWindSample], attr: str) -> FloatArray:
-    if not samples:
-        return np.zeros(0, dtype=np.float64)
-    return np.asarray([getattr(sample, attr) for sample in samples], dtype=np.float64)
+_ABSENT = float("nan")
 
 
 def _normalize_kp(kp_values: FloatArray, *, divisor: float = 9.0) -> float:
-    """Escala Kp oficial NOAA: 0–9 (grau A). Divisor fixo = 9.0."""
+    """Kp oficial NOAA 0–9 (grau A): média da janela / 9."""
     if kp_values.size == 0:
-        return 0.0
-    window = kp_values[-min(12, kp_values.size) :]
-    return float(np.clip(np.mean(window) / divisor, 0.0, 1.0))
+        return _ABSENT
+    return float(np.clip(np.mean(kp_values) / divisor, 0.0, 1.0))
 
 
 def _normalize_dst(dst_values: FloatArray, *, divisor: float = 78.0) -> float:
     """abs(min(Dst,0)) / divisor. Calibrado: p99 = 78 nT (OMNI2 2020-2025, grau B)."""
     if dst_values.size == 0:
-        return 0.0
-    min_dst = float(np.min(dst_values))
-    storm = abs(min(min_dst, 0.0))
+        return _ABSENT
+    storm = abs(min(float(np.min(dst_values)), 0.0))
     return float(np.clip(storm / divisor, 0.0, 1.0))
 
 
 def _normalize_bz(bz_values: FloatArray, *, divisor: float = 8.7) -> float:
-    """max(-Bz,0) / divisor. Calibrado: p99 = 8.7 nT (OMNI2 2020-2025, grau B)."""
+    """mean(max(-Bz,0)) / divisor. Calibrado: p99 = 8.7 nT (OMNI2 2020-2025, grau B)."""
     if bz_values.size == 0:
-        return 0.0
+        return _ABSENT
     southward = np.clip(-bz_values, 0, None)
     return float(np.clip(np.mean(southward) / divisor, 0.0, 1.0))
 
 
-def _normalize_wind_pressure(
-    speed: FloatArray, density: FloatArray, *, divisor: float = 4_364_643.0
-) -> float:
-    """ρv² / divisor. Calibrado: p99 = 4.36M (OMNI2 2020-2025, grau B)."""
-    if speed.size == 0 or density.size == 0:
-        return 0.0
-    pressure = density * np.square(speed)
-    return float(np.clip(np.mean(pressure) / divisor, 0.0, 1.0))
+def _normalize_wind_pressure(pressure_npa: FloatArray, *, divisor: float = 7.30) -> float:
+    """mean(1.6726e-6·n·v²) [nPa] / divisor. Calibrado: p99 = 7.30 nPa (grau B)."""
+    if pressure_npa.size == 0:
+        return _ABSENT
+    return float(np.clip(np.mean(pressure_npa) / divisor, 0.0, 1.0))
 
 
 def _normalize_variability(kp_values: FloatArray, *, divisor: float = 1.57) -> float:
-    """std(Kp,12h) / divisor. Calibrado: p99 = 1.57 (OMNI2 2020-2025, grau B)."""
+    """std(Kp, janela de 12 h, ddof=1) / divisor. Precisa de ≥ 2 amostras."""
     if kp_values.size < 2:
-        return 0.0
-    window = kp_values[-min(12, kp_values.size) :]
-    return float(np.clip(np.std(window, dtype=np.float64) / divisor, 0.0, 1.0))
+        return _ABSENT
+    return float(np.clip(np.std(kp_values, ddof=1, dtype=np.float64) / divisor, 0.0, 1.0))
 
 
 def _classify(score: float) -> str:
@@ -214,15 +216,17 @@ def _build_alerts(components: HelioMindComponents) -> List[str]:
     # Limiares em fração do p99 calibrado (OMNI2 2020-2025).
     # 0.6 ≈ top 5-10% das horas; 0.7 ≈ top 2-3%.
     # Evidência cardiovascular (grau A), psiquiátrica (grau C).
-    # Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.3.
+    # Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.3. Componente ausente (NaN) não alerta.
     alerts: List[str] = []
-    if components.kp_activity >= 0.7:  # Kp ≥ 6.3 ≈ G3 (NOAA)
+    if (
+        components.kp_activity >= 0.7
+    ):  # Kp ≥ 6.3 (0.7·9): entre G2 (Kp 6) e G3 (Kp 7) da escala NOAA
         alerts.append("Kp elevado — tempestade geomagnetica em curso")
     if components.dst_storm_intensity >= 0.6:  # |Dst| ≥ 47 nT (≈ top 5% das horas)
         alerts.append("Dst muito negativo — risco cardiovascular elevado (RR ~1.1–1.5)")
     if components.bz_reconnection >= 0.5:  # Bz sul ≥ 4.4 nT (≈ top 8% das horas)
         alerts.append("Bz sul intenso — reconexao magnética acentuada")
-    if components.solar_wind_pressure >= 0.5:  # ρv² ≥ 2.2M (EXPLORATÓRIO)
+    if components.solar_wind_pressure >= 0.5:  # P ≥ 3.65 nPa (EXPLORATÓRIO)
         alerts.append("Pressao de vento solar acima da média")
     if components.variability >= 0.6:  # std(Kp) ≥ 0.94 (EXPLORATÓRIO)
         alerts.append("Variabilidade geomagnetica alta — flutuações rápidas")
@@ -230,15 +234,16 @@ def _build_alerts(components: HelioMindComponents) -> List[str]:
 
 
 def _latest_timestamp(snapshot: SolarObservation, default: Optional[datetime] = None) -> datetime:
-    candidates: List[datetime] = []
-    if snapshot.kp_series:
-        candidates.append(snapshot.kp_series[-1].timestamp)
-    if snapshot.dst_series:
-        candidates.append(snapshot.dst_series[-1].timestamp)
-    if snapshot.imf:
-        candidates.append(snapshot.imf[-1].timestamp)
-    if snapshot.solar_wind:
-        candidates.append(snapshot.solar_wind[-1].timestamp)
+    """Maior timestamp entre TODAS as amostras de todas as séries (inclusive as de valor ausente).
+
+    Não assume ordem: o feed RTSW do SWPC vem do mais novo para o mais antigo, então o último
+    elemento da lista seria a amostra mais ANTIGA (docs/SIO_CORE_SPEC.md §4, ``t_end``).
+    """
+    candidates: List[datetime] = [
+        item.timestamp
+        for series in (snapshot.kp_series, snapshot.dst_series, snapshot.imf, snapshot.solar_wind)
+        for item in series
+    ]
     if not candidates:
         return default if default is not None else datetime.now(tz=timezone.utc)
     return max(candidates)

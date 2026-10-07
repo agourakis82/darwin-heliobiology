@@ -7,6 +7,7 @@ pipeline é totalmente reprodutível e baseado em APIs abertas.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, List, Optional
@@ -21,6 +22,16 @@ from darwin_heliobiology.models.solar import (
 )
 
 DEFAULT_TIMEOUT = 10
+
+
+def _num(value: Any) -> float:
+    """Converte para float; ausente/None/inválido vira NaN (nunca 0.0)."""
+    if value is None:
+        return float("nan")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 @dataclass(slots=True)
@@ -68,7 +79,9 @@ class SolarAtlas:
             timestamp = datetime.fromisoformat(entry["time_tag"].replace("Z", "+00:00"))
             if timestamp < cutoff:
                 continue
-            kp_value = float(entry.get("kp", entry.get("kp_index", entry.get("estimated_kp", 0.0))))
+            kp_value = _num(entry.get("kp", entry.get("kp_index", entry.get("estimated_kp"))))
+            if math.isnan(kp_value):
+                continue  # ausente: descarta a amostra (nunca vira 0.0)
             series.append(SolarIndex(timestamp=timestamp, value=kp_value, label="Kp"))
 
         return series
@@ -85,7 +98,9 @@ class SolarAtlas:
             timestamp = datetime.fromisoformat(entry[0].replace("Z", "+00:00"))
             if timestamp < cutoff:
                 continue
-            dst_value = float(entry[1])
+            dst_value = _num(entry[1])
+            if math.isnan(dst_value):
+                continue
             series.append(SolarIndex(timestamp=timestamp, value=dst_value, label="Dst"))
 
         return series
@@ -105,9 +120,9 @@ class SolarAtlas:
             samples.append(
                 SolarWindSample(
                     timestamp=timestamp,
-                    speed_kms=float(entry.get("speed", 0.0)),
-                    density_pcm3=float(entry.get("density", 0.0)),
-                    temperature_k=float(entry.get("temperature", 0.0)),
+                    speed_kms=_num(entry.get("speed")),
+                    density_pcm3=_num(entry.get("density")),
+                    temperature_k=_num(entry.get("temperature")),
                 )
             )
 
@@ -127,10 +142,10 @@ class SolarAtlas:
             vectors.append(
                 IMFVector(
                     timestamp=timestamp,
-                    bx_nt=float(entry.get("bx_gsm", 0.0)),
-                    by_nt=float(entry.get("by_gsm", 0.0)),
-                    bz_nt=float(entry.get("bz_gsm", 0.0)),
-                    bt_nt=float(entry.get("bt", 0.0)),
+                    bx_nt=_num(entry.get("bx_gsm")),
+                    by_nt=_num(entry.get("by_gsm")),
+                    bz_nt=_num(entry.get("bz_gsm")),
+                    bt_nt=_num(entry.get("bt")),
                 )
             )
 

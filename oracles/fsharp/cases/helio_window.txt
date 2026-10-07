@@ -1,0 +1,11 @@
+# window-by-time: t_end = 100000, W = (56800, 100000]; boundary t=56800 and t=50000 are OUT.
+KP   56800 9.0
+KP   60000 4.5
+KP   100000 4.5
+DST  50000 -200
+DST  70000 -39
+BZ   80000 -4.35
+BZ   90000 5
+WIND 98000 NA 500
+WIND 99000 2 1000
+# expected: n_window 2 1 2 1 ; kp .5 ; dst .5 ; bz .25 ; pressure 3.3452/7.3 ; variability 0 ; class 1 ; alerts 0

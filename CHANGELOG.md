@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased] - fix/data-integrity
+
+Integridade de dados (ausente nunca vira 0; escalas e janelas explícitas):
+
+- OMNI2: Kp é dividido por 10 NA LEITURA (`_parse_omni2_text`); `ensure_kp_scale` (série inteira, idempotente) substitui as heurísticas `max > 9.5` espalhadas. Parquet legado migrado por `scripts/migrate_omni_kp_scale.py`.
+- HelioMind Index: janela de 12 h por TEMPO (antes: últimas 12 amostras, de uma série de 1 min); `std` com ddof=1 (igual à calibração); componente sem amostra válida é `NaN` e o score vira `NaN`/`indisponivel` (antes: 0.0 / "estavel"); pressão dinâmica em nPa (1.6726e-6·n·v² / 7.30).
+- Atlas geomagnético: `storm_count` → `storm_hours` (+ `valid_hours`); contagem com Kp na escala real (antes `Kp>=5` sobre ×10 contava quase toda hora); médias/mínimos sem dado são `NaN`, não 0.0.
+- SolarAtlas (NOAA): campo ausente descarta a amostra / vira `NaN` (antes: `0.0` default para Kp, velocidade, densidade, Bz).
+- Calibração/WHO: variabilidade std(Kp,12 h) por tempo com ddof=1; o placeholder `variability = 0.0` e `Bz = 0.0` ausentes viraram `NaN`.
+- Fisher-z recusa |r| = 1.
+- HelioMind: `_latest_timestamp` toma o MAIOR timestamp de todas as séries (antes o último elemento de cada lista, que no feed RTSW decrescente é a amostra mais antiga; issue #3).
+
 ## [0.2.0] - 2025-02-09
 
 - **DOI Published**: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18558930.svg)](https://doi.org/10.5281/zenodo.18558930)

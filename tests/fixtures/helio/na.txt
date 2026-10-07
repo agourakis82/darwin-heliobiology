@@ -1,0 +1,7 @@
+# Kp todo ausente: kp, variability e score ficam AUSENTES (class 3); nunca 0
+NOW 5
+KP 100000 NA
+KP 99000 NA
+DST 100000 -10
+BZ 100000 -2.0
+WIND 100000 4.0 400.0

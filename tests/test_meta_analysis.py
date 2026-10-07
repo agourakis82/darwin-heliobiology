@@ -110,3 +110,12 @@ def test_p_value_is_valid(validator: AletheiaValidator) -> None:
 
     assert 0.0 <= result.p_value <= 1.0
     assert not math.isnan(result.z_score)
+
+
+def test_fisher_z_rejects_perfect_correlation() -> None:
+    import pytest
+
+    from darwin_heliobiology.services.aletheia_validator import AletheiaValidator
+
+    with pytest.raises(ValueError):
+        AletheiaValidator.fisher_z_transform(1.0, 30)

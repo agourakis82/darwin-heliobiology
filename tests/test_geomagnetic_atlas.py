@@ -57,8 +57,8 @@ def test_build_quarterly_atlas() -> None:
     assert "Q" in result.signatures[0].period_label
 
 
-def test_storm_count_reflects_kp() -> None:
-    """Kp todos >= 5 → storm_count == total de registros no período."""
+def test_storm_hours_reflects_kp() -> None:
+    """Kp todos >= 5 → storm_hours == total de registros no período."""
     timestamps = pd.date_range("2024-03-01", periods=24, freq="h", tz="UTC")
     df = pd.DataFrame(
         {
@@ -69,7 +69,7 @@ def test_storm_count_reflects_kp() -> None:
         }
     )
     result = build_geomagnetic_atlas(df, resolution="daily")
-    assert result.signatures[0].storm_count == 24
+    assert result.signatures[0].storm_hours == 24
 
 
 def test_atlas_to_dataframe() -> None:
@@ -78,7 +78,7 @@ def test_atlas_to_dataframe() -> None:
     out_df = atlas_to_dataframe(result)
 
     assert "period_label" in out_df.columns
-    assert "storm_count" in out_df.columns
+    assert "storm_hours" in out_df.columns
     assert len(out_df) == len(result.signatures)
 
 
@@ -92,3 +92,27 @@ def test_missing_columns_raises() -> None:
     df = pd.DataFrame({"timestamp": [1, 2], "kp_index": [3.0, 4.0]})
     with pytest.raises(ValueError, match="Colunas ausentes"):
         build_geomagnetic_atlas(df, resolution="daily")
+
+
+def test_absent_values_stay_nan_and_storm_hours_bounded_by_valid_hours() -> None:
+    import numpy as np
+
+    idx = pd.date_range("2024-01-01", periods=24, freq="h", tz="UTC")
+    kp = [6.0] * 6 + [np.nan] * 18
+    df = pd.DataFrame(
+        {"timestamp": idx, "kp_index": kp, "dst_nt": [np.nan] * 24, "bz_gsm_nt": [np.nan] * 24}
+    )
+    sig = build_geomagnetic_atlas(df, "daily").signatures[0]
+    assert sig.storm_hours == 6 and sig.valid_hours == 6
+    assert sig.storm_hours <= sig.valid_hours
+    assert np.isnan(sig.mean_dst) and np.isnan(sig.min_dst) and np.isnan(sig.mean_bz)
+    assert np.isnan(sig.bz_southward_fraction)
+
+
+def test_legacy_kp_times_ten_is_rescaled_before_counting_storms() -> None:
+    idx = pd.date_range("2024-01-01", periods=24, freq="h", tz="UTC")
+    kp10 = [30.0] * 20 + [60.0] * 4  # Kp 3.0 e 6.0 na escala ×10
+    df = pd.DataFrame(
+        {"timestamp": idx, "kp_index": kp10, "dst_nt": [0.0] * 24, "bz_gsm_nt": [0.0] * 24}
+    )
+    assert build_geomagnetic_atlas(df, "daily").signatures[0].storm_hours == 4

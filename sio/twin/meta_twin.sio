@@ -1,0 +1,149 @@
+// sio/twin/meta_twin.sio — GEMEO do DerSimonian-Laird (ADR-009 §1): FORMA MATRICIAL.
+//
+// O nucleo usa a formula de momentos com somas escalares. Aqui tudo passa por matrizes k x k:
+//   W = diag(1/v), 1 = vetor de uns, s = 1' W 1, P = W - W 1 1' W / s     (matriz de projecao ponderada)
+//   Q = y' P y,  C = tr(P),  tau2 = max(0, (Q-(k-1))/C),  I2 = max(0, (Q-(k-1))/Q)*100
+//   V = diag(v + tau2) invertida por Gauss-Jordan,  beta = (1' V^-1 1)^-1 1' V^-1 y,
+//   var(beta) = (1' V^-1 1)^-1.
+// beta efeito fixo: o mesmo GLS com V0 = diag(v).
+// Compartilha com o nucleo so E/S (meta_case.sio) e sqrt.
+
+use num::{sqrt_f64}
+use meta_case::{MetaCase, MetaOut}
+
+// inversa de a (k x k, linha-maior) por Gauss-Jordan com pivoteamento parcial; devolve em inv.
+fn invert(a: *mut f64, inv: *mut f64, k: i64) with Mut, Panic, Div {
+    let w = heap_alloc(8 * k * k) as *mut f64
+    var i: i64 = 0
+    while i < k * k { write_f64(w, i, read_f64(a, i)); write_f64(inv, i, 0.0); i = i + 1 }
+    i = 0
+    while i < k { write_f64(inv, i * k + i, 1.0); i = i + 1 }
+    var col: i64 = 0
+    while col < k {
+        // pivo
+        var piv = col
+        var best = read_f64(w, col * k + col)
+        if best < 0.0 { best = 0.0 - best }
+        var r = col + 1
+        while r < k {
+            var v = read_f64(w, r * k + col)
+            if v < 0.0 { v = 0.0 - v }
+            if v > best { best = v; piv = r }
+            r = r + 1
+        }
+        if piv != col {
+            var j: i64 = 0
+            while j < k {
+                let t1 = read_f64(w, col * k + j)
+                write_f64(w, col * k + j, read_f64(w, piv * k + j))
+                write_f64(w, piv * k + j, t1)
+                let t2 = read_f64(inv, col * k + j)
+                write_f64(inv, col * k + j, read_f64(inv, piv * k + j))
+                write_f64(inv, piv * k + j, t2)
+                j = j + 1
+            }
+        }
+        let d = read_f64(w, col * k + col)
+        var j: i64 = 0
+        while j < k {
+            write_f64(w, col * k + j, read_f64(w, col * k + j) / d)
+            write_f64(inv, col * k + j, read_f64(inv, col * k + j) / d)
+            j = j + 1
+        }
+        var rr: i64 = 0
+        while rr < k {
+            if rr != col {
+                let f = read_f64(w, rr * k + col)
+                var jj: i64 = 0
+                while jj < k {
+                    write_f64(w, rr * k + jj, read_f64(w, rr * k + jj) - f * read_f64(w, col * k + jj))
+                    write_f64(inv, rr * k + jj, read_f64(inv, rr * k + jj) - f * read_f64(inv, col * k + jj))
+                    jj = jj + 1
+                }
+            }
+            rr = rr + 1
+        }
+        col = col + 1
+    }
+}
+
+// beta = (1' V^-1 1)^-1 1' V^-1 y  e  inv_total = 1' V^-1 1  para V = diag(d)
+fn gls(d: *mut f64, y: *mut f64, k: i64, inv_total: &!f64) -> f64 with Mut, Panic, Div {
+    let vm = heap_alloc(8 * k * k) as *mut f64
+    let vi = heap_alloc(8 * k * k) as *mut f64
+    var i: i64 = 0
+    while i < k * k { write_f64(vm, i, 0.0); i = i + 1 }
+    i = 0
+    while i < k { write_f64(vm, i * k + i, read_f64(d, i)); i = i + 1 }
+    invert(vm, vi, k)
+    var tot: f64 = 0.0
+    var num: f64 = 0.0
+    var r: i64 = 0
+    while r < k {
+        var c: i64 = 0
+        while c < k {
+            let e = read_f64(vi, r * k + c)
+            tot = tot + e
+            num = num + e * read_f64(y, c)
+            c = c + 1
+        }
+        r = r + 1
+    }
+    *inv_total = tot
+    num / tot
+}
+
+pub fn meta_dl_twin(c: &MetaCase, out: &!MetaOut) with Mut, Panic, Div, Alloc {
+    let k = c.k
+    out.k = k
+    let y = heap_alloc(8 * (k + 1)) as *mut f64
+    let v = heap_alloc(8 * (k + 1)) as *mut f64
+    var i: i64 = 0
+    while i < k { write_f64(y, i, c.y[i as usize]); write_f64(v, i, c.v[i as usize]); i = i + 1 }
+    // efeito fixo por GLS (V0 = diag(v)) -- e s = 1' W 1
+    var s: f64 = 0.0
+    let yfe = gls(v, y, k, &!s)
+    // matriz de projecao P = W - W 1 1' W / s ; Q = y' P y ; C = tr P
+    let w = heap_alloc(8 * (k + 1)) as *mut f64
+    i = 0
+    while i < k { write_f64(w, i, 1.0 / read_f64(v, i)); i = i + 1 }
+    var q: f64 = 0.0
+    var tr: f64 = 0.0
+    var r: i64 = 0
+    while r < k {
+        var cidx: i64 = 0
+        while cidx < k {
+            var p = 0.0 - read_f64(w, r) * read_f64(w, cidx) / s
+            if r == cidx { p = p + read_f64(w, r); tr = tr + p }
+            q = q + read_f64(y, r) * p * read_f64(y, cidx)
+            cidx = cidx + 1
+        }
+        r = r + 1
+    }
+    var tau2: f64 = 0.0
+    if tr > 0.0 {
+        let t = (q - ((k - 1) as f64)) / tr
+        if t > 0.0 { tau2 = t }
+    }
+    var i2: f64 = 0.0
+    if q > 0.0 {
+        let t = (q - ((k - 1) as f64)) / q
+        if t > 0.0 { i2 = t * 100.0 }
+    }
+    // efeito aleatorio: V = diag(v + tau2)
+    let vt = heap_alloc(8 * (k + 1)) as *mut f64
+    i = 0
+    while i < k { write_f64(vt, i, read_f64(v, i) + tau2); i = i + 1 }
+    var stot: f64 = 0.0
+    let yre = gls(vt, y, k, &!stot)
+    let se = sqrt_f64(1.0 / stot)
+    out.q = q
+    out.tau2 = tau2
+    out.i2 = i2
+    out.fe = yfe
+    out.re = yre
+    out.se = se
+    out.z = yre / se
+    out.lo = yre - 1.959963984540054 * se
+    out.hi = yre + 1.959963984540054 * se
+}

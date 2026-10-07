@@ -1,0 +1,75 @@
+// Testes do Atlas (nucleo + gemeo) sobre tests/fixtures/omni2/atlas.dat (valores conferidos a mao).
+use omni::{Omni, omni_new, omni_append_file, omni_count_lines}
+use atlas_case::{AtlasRes, atlas_res_new, atlas_f, atlas_k, atlas_print}
+use atlas::{atlas_build}
+use twin::atlas_twin::{atlas_build_twin}
+
+fn near(a: f64, b: f64) -> bool {
+    let d = if a > b { a - b } else { b - a }
+    let m = if a > b { a } else { b }
+    d <= 1.0e-12 * (if m > 1.0e-6 { m } else { 1.0e-6 })
+}
+
+// confere o periodo i: (ano, sub, dia, storm, valid, mean_kp|NA, mean_dst|NA, mean_bz|NA, min_dst|NA, frac|NA)
+fn chk(r: &AtlasRes, i: i64, y: i64, sub: i64, d: i64, storm: i64, valid: i64,
+       mk: f64, md: f64, mb: f64, mind: f64, bf: f64, mask: i64) with Mut, Div, Panic {
+    assert(atlas_k(r, 0, i) == y)
+    assert(atlas_k(r, 1, i) == sub)
+    assert(atlas_k(r, 2, i) == d)
+    assert(atlas_k(r, 3, i) == storm)
+    assert(atlas_k(r, 4, i) == valid)
+    assert(atlas_k(r, 3, i) <= atlas_k(r, 4, i))        // storm_hours <= valid_hours
+    assert(atlas_k(r, 5, i) == mask)
+    if (mask & 1) == 1 { assert(near(atlas_f(r, 0, i), mk)) }
+    if (mask & 2) == 2 { assert(near(atlas_f(r, 1, i), md)) }
+    if (mask & 4) == 4 { assert(near(atlas_f(r, 2, i), mb)) }
+    if (mask & 8) == 8 { assert(near(atlas_f(r, 3, i), mind)) }
+    if (mask & 16) == 16 { assert(near(atlas_f(r, 4, i), bf)) }
+}
+
+fn check_all(r0: &AtlasRes, r1: &AtlasRes, r2: &AtlasRes) with Mut, Div, Panic {
+    // diario: 5 periodos
+    assert(r0.n == 5)
+    chk(r0, 0, 2024, 2, 28, 1, 2, 4.95, -20.0, -2.0 / 3.0, -30.0, 2.0 / 3.0, 31)
+    chk(r0, 1, 2024, 2, 29, 1, 2, 4.35, 1.0, 0.0, -5.0, 0.0, 31)
+    chk(r0, 2, 2024, 3, 1, 0, 1, 1.0, 0.0, -0.5, 0.0, 1.0, 31)
+    chk(r0, 3, 2024, 4, 1, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)          // tudo ausente: mascara 0
+    chk(r0, 4, 2024, 7, 15, 1, 1, 9.0, -120.0, 4.0, -120.0, 0.0, 31)
+    // mensal: 2024-02, 03, 04, 07
+    assert(r1.n == 4)
+    chk(r1, 0, 2024, 2, 0, 2, 4, 4.65, -9.5, -0.5, -30.0, 0.5, 31)
+    chk(r1, 1, 2024, 3, 0, 0, 1, 1.0, 0.0, -0.5, 0.0, 1.0, 31)
+    chk(r1, 2, 2024, 4, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)
+    chk(r1, 3, 2024, 7, 0, 1, 1, 9.0, -120.0, 4.0, -120.0, 0.0, 31)
+    // trimestral: Q1, Q2, Q3
+    assert(r2.n == 3)
+    chk(r2, 0, 2024, 1, 0, 2, 5, 3.92, -7.6, -0.5, -30.0, 0.6, 31)
+    chk(r2, 1, 2024, 2, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)
+    chk(r2, 2, 2024, 3, 0, 1, 1, 9.0, -120.0, 4.0, -120.0, 0.0, 31)
+}
+
+fn main() -> i32 with IO, Mut, Div, Panic, Alloc {
+    let path = "tests/fixtures/omni2/atlas.dat"
+    var o = omni_new(omni_count_lines(path))
+    omni_append_file(&!o, path)
+    assert(o.n == 8)
+    // nucleo
+    var a0 = atlas_res_new(0, 64)
+    var a1 = atlas_res_new(1, 64)
+    var a2 = atlas_res_new(2, 64)
+    atlas_build(&o, 0, &!a0)
+    atlas_build(&o, 1, &!a1)
+    atlas_build(&o, 2, &!a2)
+    check_all(&a0, &a1, &a2)
+    // gemeo
+    var b0 = atlas_res_new(0, 64)
+    var b1 = atlas_res_new(1, 64)
+    var b2 = atlas_res_new(2, 64)
+    atlas_build_twin(&o, 0, &!b0)
+    atlas_build_twin(&o, 1, &!b1)
+    atlas_build_twin(&o, 2, &!b2)
+    check_all(&b0, &b1, &b2)
+    atlas_print(&a1)
+    print("ATLAS_CASES_OK\n")
+    return 0
+}

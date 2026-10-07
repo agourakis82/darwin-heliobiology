@@ -14,12 +14,14 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
+from darwin_heliobiology.datasets.omni import ensure_kp_scale
+
 FloatArray = NDArray[np.float64]
 
 # ── Pesos e divisores padrão (espelham helio_index.py) ────────────────────────
 
 DEFAULT_WEIGHTS: Tuple[float, ...] = (0.35, 0.25, 0.20, 0.15, 0.05)
-DEFAULT_DIVISORS: Tuple[float, ...] = (9.0, 78.0, 8.7, 4_364_643.0, 1.57)
+DEFAULT_DIVISORS: Tuple[float, ...] = (9.0, 78.0, 8.7, 7.30, 1.57)
 
 COMPONENT_NAMES: Tuple[str, ...] = (
     "kp_activity",
@@ -95,20 +97,25 @@ def _transform_omni_columns(df: pd.DataFrame) -> pd.DataFrame:
     dividimos por 10 para obter a escala real 0–9 usada pelo helio_index.py.
     """
     out = pd.DataFrame()
-    kp = df["kp_index"].copy()
-    if kp.max() > 9.5:  # OMNI2 convention: Kp * 10
-        kp = kp / 10.0
+    kp = ensure_kp_scale(df["kp_index"].copy())  # legado ×10 → 0–9
     out["kp_index"] = kp
     out["dst_nt"] = df["dst_nt"].clip(upper=0).abs()
     out["bz_gsm_nt"] = (-df["bz_gsm_nt"]).clip(lower=0)
 
     if "proton_density_pcm3" in df.columns and "speed_kms" in df.columns:
-        out["pressure_rho_v2"] = df["proton_density_pcm3"] * df["speed_kms"] ** 2
+        # Pressão dinâmica em nPa: 1.6726e-6 · n · v²
+        out["pressure_rho_v2"] = 1.6726e-6 * df["proton_density_pcm3"] * df["speed_kms"] ** 2
     else:
         out["pressure_rho_v2"] = np.nan
 
-    kp_roll = kp.rolling(window=12, min_periods=2).std()
-    out["kp_variability_12h"] = kp_roll
+    # std(Kp, 12 h) por TEMPO (ddof=1); com índice temporal usa janela '12h'.
+    if "timestamp" in df.columns:
+        ts = pd.to_datetime(df["timestamp"])
+        kp_t = pd.Series(kp.to_numpy(), index=pd.DatetimeIndex(ts))
+        roll = kp_t.rolling("12h", min_periods=2).std(ddof=1)
+        out["kp_variability_12h"] = roll.to_numpy()
+    else:
+        out["kp_variability_12h"] = kp.rolling(window=12, min_periods=2).std(ddof=1)
     return out
 
 
@@ -419,9 +426,8 @@ def prepare_solar_only_dataframe(
     cols = solar_cols or ["kp_index", "dst_nt", "bz_gsm_nt", "speed_kms"]
     df = omni_df[["timestamp"] + [c for c in cols if c in omni_df.columns]].copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    # OMNI2 Kp*10 → Kp real
-    if "kp_index" in df.columns and df["kp_index"].max() > 9.5:
-        df["kp_index"] = df["kp_index"] / 10.0
+    if "kp_index" in df.columns:
+        df["kp_index"] = ensure_kp_scale(df["kp_index"])
     df = df.set_index("timestamp").resample("h").mean().dropna()
 
     short_names = [
