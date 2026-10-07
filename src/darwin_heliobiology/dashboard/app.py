@@ -18,7 +18,7 @@ from darwin_heliobiology.dashboard.components import (
 st.set_page_config(page_title="HelioMind Dashboard", page_icon="☀️", layout="wide")
 
 
-@st.cache_data  # type: ignore[untyped-decorator]
+@st.cache_data
 def load_omni_data(path: str | Path) -> pd.DataFrame:
     """Carrega dados OMNI2 de um arquivo parquet.
 
@@ -41,7 +41,7 @@ def load_omni_data(path: str | Path) -> pd.DataFrame:
     return df
 
 
-@st.cache_data  # type: ignore[untyped-decorator]
+@st.cache_data
 def compute_helio_mind(df: pd.DataFrame) -> pd.DataFrame:
     """Computa o HelioMind Index para cada linha do DataFrame.
 
