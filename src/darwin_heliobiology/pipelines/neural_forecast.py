@@ -8,7 +8,7 @@ atividade geomagnética (Kp, Dst) ou score composto HelioMind. Complementa o
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -37,17 +37,17 @@ class NeuralForecastResult:
 
     model_type: str
     predictions: pd.DataFrame
-    metrics: Dict[str, float] = field(default_factory=dict)
-    config: Optional[NeuralForecastConfig] = None
+    metrics: dict[str, float] = field(default_factory=dict)
+    config: NeuralForecastConfig | None = None
 
 
 def prepare_neuralforecast_df(
     solar_df: pd.DataFrame,
-    hrv_df: Optional[pd.DataFrame] = None,
+    hrv_df: pd.DataFrame | None = None,
     *,
     target_col: str = "kp_index",
-    solar_exog: Optional[List[str]] = None,
-    hrv_exog: Optional[List[str]] = None,
+    solar_exog: list[str] | None = None,
+    hrv_exog: list[str] | None = None,
     unique_id: str = "helio",
 ) -> pd.DataFrame:
     """Prepara DataFrame no formato NeuralForecast (unique_id, ds, y + exógenas).
@@ -109,7 +109,7 @@ def prepare_neuralforecast_df(
 
 def build_neural_forecaster(
     config: NeuralForecastConfig,
-    exog_cols: Optional[List[str]] = None,
+    exog_cols: list[str] | None = None,
 ) -> Any:
     """Instancia NeuralForecast com TFT ou PatchTST.
 
@@ -127,7 +127,7 @@ def build_neural_forecaster(
     """
     try:
         from neuralforecast import NeuralForecast
-        from neuralforecast.models import PatchTST, TFT
+        from neuralforecast.models import TFT, PatchTST
     except ImportError as exc:
         raise ImportError(
             "neuralforecast é necessário para o pipeline neural. "
@@ -136,7 +136,7 @@ def build_neural_forecaster(
 
     hist_exog = exog_cols or []
 
-    model_kwargs: Dict[str, Any] = {
+    model_kwargs: dict[str, Any] = {
         "h": config.horizon,
         "input_size": config.input_size,
         "max_steps": config.max_steps,
@@ -191,10 +191,10 @@ def train_and_forecast(
     predictions = nf.predict()
 
     # Métricas no conjunto de validação
-    metrics: Dict[str, float] = {}
+    metrics: dict[str, float] = {}
     if not val_df.empty and not predictions.empty:
         y_true = val_df["y"].values[: config.horizon]
-        model_col = [c for c in predictions.columns if c not in reserved][0]
+        model_col = next(c for c in predictions.columns if c not in reserved)
         y_pred = predictions[model_col].values[: len(y_true)]
 
         if len(y_true) > 0 and len(y_pred) > 0:
@@ -220,8 +220,8 @@ def train_and_forecast(
 
 def compare_with_kairos(
     neural_result: NeuralForecastResult,
-    kairos_metrics: Dict[str, float],
-) -> Dict[str, Any]:
+    kairos_metrics: dict[str, float],
+) -> dict[str, Any]:
     """Comparação lado a lado entre neural forecast e baseline Kairos.
 
     Parameters
@@ -235,7 +235,7 @@ def compare_with_kairos(
     -------
     Dict com comparações por métrica.
     """
-    comparison: Dict[str, Any] = {
+    comparison: dict[str, Any] = {
         "model": neural_result.model_type,
         "neural_metrics": neural_result.metrics,
         "kairos_metrics": kairos_metrics,

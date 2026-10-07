@@ -7,8 +7,8 @@ percentis (p99), e avalia sensibilidade dos pesos.  Ver docs/SCIENTIFIC_FOUNDATI
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -18,10 +18,10 @@ FloatArray = NDArray[np.float64]
 
 # ── Pesos e divisores padrão (espelham helio_index.py) ────────────────────────
 
-DEFAULT_WEIGHTS: Tuple[float, ...] = (0.35, 0.25, 0.20, 0.15, 0.05)
-DEFAULT_DIVISORS: Tuple[float, ...] = (9.0, 78.0, 8.7, 4_364_643.0, 1.57)
+DEFAULT_WEIGHTS: tuple[float, ...] = (0.35, 0.25, 0.20, 0.15, 0.05)
+DEFAULT_DIVISORS: tuple[float, ...] = (9.0, 78.0, 8.7, 4_364_643.0, 1.57)
 
-COMPONENT_NAMES: Tuple[str, ...] = (
+COMPONENT_NAMES: tuple[str, ...] = (
     "kp_activity",
     "dst_storm_intensity",
     "bz_reconnection",
@@ -30,7 +30,7 @@ COMPONENT_NAMES: Tuple[str, ...] = (
 )
 
 # Variáveis OMNI2 → transformação para comparação com divisor
-_VARIABLE_SPEC: List[Dict[str, Any]] = [
+_VARIABLE_SPEC: list[dict[str, Any]] = [
     {"variable": "kp_index", "component": "kp_activity", "divisor_idx": 0},
     {"variable": "dst_nt", "component": "dst_storm_intensity", "divisor_idx": 1},
     {"variable": "bz_gsm_nt", "component": "bz_reconnection", "divisor_idx": 2},
@@ -74,14 +74,14 @@ class WeightSensitivity:
 class CalibrationReport:
     """Resultado completo da calibração empírica."""
 
-    distributions: List[EmpiricalDistribution]
-    sensitivities: List[WeightSensitivity]
-    old_score_stats: Dict[str, float]
-    new_score_stats: Dict[str, float]
-    old_classification_counts: Dict[str, int]
-    new_classification_counts: Dict[str, int]
+    distributions: list[EmpiricalDistribution]
+    sensitivities: list[WeightSensitivity]
+    old_score_stats: dict[str, float]
+    new_score_stats: dict[str, float]
+    old_classification_counts: dict[str, int]
+    new_classification_counts: dict[str, int]
     n_records: int
-    years: List[int]
+    years: list[int]
     timestamp: datetime
 
 
@@ -120,7 +120,7 @@ def _classify(score: float) -> str:
     return "alerta"
 
 
-def _score_stats(scores: FloatArray) -> Dict[str, float]:
+def _score_stats(scores: FloatArray) -> dict[str, float]:
     return {
         "mean": float(np.nanmean(scores)),
         "std": float(np.nanstd(scores)),
@@ -131,8 +131,8 @@ def _score_stats(scores: FloatArray) -> Dict[str, float]:
     }
 
 
-def _classification_counts(scores: FloatArray) -> Dict[str, int]:
-    counts: Dict[str, int] = {"estavel": 0, "vigilancia": 0, "alerta": 0}
+def _classification_counts(scores: FloatArray) -> dict[str, int]:
+    counts: dict[str, int] = {"estavel": 0, "vigilancia": 0, "alerta": 0}
     for s in scores:
         if not np.isnan(s):
             counts[_classify(float(s))] += 1
@@ -144,10 +144,10 @@ def _classification_counts(scores: FloatArray) -> Dict[str, int]:
 
 def compute_empirical_distributions(
     omni_df: pd.DataFrame,
-) -> List[EmpiricalDistribution]:
+) -> list[EmpiricalDistribution]:
     """Computa distribuições empíricas para cada variável solar transformada."""
     transformed = _transform_omni_columns(omni_df)
-    results: List[EmpiricalDistribution] = []
+    results: list[EmpiricalDistribution] = []
 
     var_names = ["kp_index", "dst_nt", "bz_gsm_nt", "pressure_rho_v2", "kp_variability_12h"]
 
@@ -199,8 +199,8 @@ def compute_empirical_distributions(
 def compute_heliomind_scores_from_omni(
     omni_df: pd.DataFrame,
     *,
-    divisors: Optional[Tuple[float, ...]] = None,
-    weights: Optional[Tuple[float, ...]] = None,
+    divisors: tuple[float, ...] | None = None,
+    weights: tuple[float, ...] | None = None,
 ) -> pd.DataFrame:
     """Computa HelioMind scores vetorizados sobre DataFrame OMNI2.
 
@@ -237,10 +237,10 @@ def compute_heliomind_scores_from_omni(
 def run_weight_sensitivity_analysis(
     omni_df: pd.DataFrame,
     *,
-    base_weights: Optional[Tuple[float, ...]] = None,
+    base_weights: tuple[float, ...] | None = None,
     perturbation: float = 0.10,
-    divisors: Optional[Tuple[float, ...]] = None,
-) -> List[WeightSensitivity]:
+    divisors: tuple[float, ...] | None = None,
+) -> list[WeightSensitivity]:
     """Analisa sensibilidade do score a perturbações em cada peso."""
     w = list(base_weights or DEFAULT_WEIGHTS)
     div = divisors or DEFAULT_DIVISORS
@@ -250,9 +250,9 @@ def run_weight_sensitivity_analysis(
     ].to_numpy(dtype=np.float64)
     baseline_var = float(np.nanvar(baseline_scores))
 
-    results: List[WeightSensitivity] = []
+    results: list[WeightSensitivity] = []
     for i, comp in enumerate(COMPONENT_NAMES):
-        deltas: List[float] = []
+        deltas: list[float] = []
         for direction in [perturbation, -perturbation]:
             perturbed = list(w)
             perturbed[i] += direction
@@ -318,13 +318,13 @@ def build_calibration_report(omni_df: pd.DataFrame) -> CalibrationReport:
         new_classification_counts=_classification_counts(new_arr),
         n_records=len(omni_df),
         years=years,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
 def calibration_report_to_dataframe(report: CalibrationReport) -> pd.DataFrame:
     """Converte relatório em DataFrame para persistência."""
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for d in report.distributions:
         rows.append(
             {
@@ -410,8 +410,8 @@ def print_calibration_summary(report: CalibrationReport) -> None:
 def prepare_solar_only_dataframe(
     omni_df: pd.DataFrame,
     *,
-    solar_cols: Optional[List[str]] = None,
-) -> Tuple[FloatArray, List[str]]:
+    solar_cols: list[str] | None = None,
+) -> tuple[FloatArray, list[str]]:
     """Prepara array (T × N) de variáveis solares para PCMCI+.
 
     Retorna array numérico e lista de nomes curtos para exibição.

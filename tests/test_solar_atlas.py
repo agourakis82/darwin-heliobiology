@@ -1,6 +1,6 @@
 """Testes para ingestão pública de dados solares."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -8,11 +8,32 @@ from darwin_heliobiology.core.solar_atlas import SolarAtlas
 
 
 def _recent(minutes: int) -> str:
-    return (
-        (datetime.now(tz=timezone.utc) - timedelta(minutes=minutes))
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return (datetime.now(tz=UTC) - timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z")
+
+
+@pytest.mark.parametrize("suffix", ["Z", "+00:00"])
+def test_snapshot_preserves_utc_timestamps(monkeypatch, suffix):
+    expected = datetime.now(tz=UTC) - timedelta(minutes=15)
+    time_tag = expected.isoformat().replace("+00:00", suffix)
+    dataset = {
+        "/json/planetary_k_index_1m.json": [{"time_tag": time_tag, "kp": "5.0"}],
+        "/products/kyoto-dst.json": [["time_tag", "dst"], [time_tag, "-45"]],
+        "/json/ace/swepam_1m.json": [{"time_tag": time_tag, "speed": "420"}],
+        "/json/ace/mag_1m.json": [{"time_tag": time_tag, "bz_gsm": "-7"}],
+    }
+    monkeypatch.setattr(SolarAtlas, "_get_json", lambda self, path: dataset[path])
+
+    observation = SolarAtlas().snapshot(hours=1)
+
+    for series in (
+        observation.kp_series,
+        observation.dst_series,
+        observation.solar_wind,
+        observation.imf,
+    ):
+        assert len(series) == 1
+        assert series[0].timestamp == expected
+        assert series[0].timestamp.tzinfo is UTC
 
 
 @pytest.fixture

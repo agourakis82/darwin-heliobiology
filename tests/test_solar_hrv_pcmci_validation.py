@@ -18,7 +18,7 @@ def test_priors_forbid_bio_to_solar() -> None:
     # Bio → Solar links devem ser proibidos (valor = "")
     for bio_idx in [3, 4, 5]:
         for solar_idx in [0, 1, 2]:
-            for lag in range(0, 25):
+            for lag in range(25):
                 link_key = (bio_idx, -lag)
                 if link_key in priors.get(solar_idx, {}):
                     assert priors[solar_idx][link_key] == "", (

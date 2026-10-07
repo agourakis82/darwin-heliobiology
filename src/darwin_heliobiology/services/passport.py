@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -51,14 +51,14 @@ class PsychoGeomagneticPassport:
     sensitivity: SensitivityProfile
 
     # Períodos vulneráveis (labels do atlas geomagnético)
-    vulnerable_periods: List[str]
+    vulnerable_periods: list[str]
     storm_impact_score: float
 
     # Proveniência
     training_start: datetime
     training_end: datetime
     n_observations: int
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -66,21 +66,21 @@ class PsychoGeomagneticPassport:
 # ---------------------------------------------------------------------------
 
 # Mapeamento coluna solar → nome curto
-_SOLAR_COL_MAP: Dict[str, str] = {
+_SOLAR_COL_MAP: dict[str, str] = {
     "kp_index": "kp",
     "dst_nt": "dst",
     "bz_gsm_nt": "bz",
 }
 
 # Pesos para composite sensitivity (somam 1.0)
-_COEF_WEIGHTS: Dict[str, float] = {"kp": 0.50, "dst": 0.30, "bz": 0.20}
+_COEF_WEIGHTS: dict[str, float] = {"kp": 0.50, "dst": 0.30, "bz": 0.20}
 
 
 def _cross_correlate_at_lags(
     solar_series: np.ndarray,
     bio_series: np.ndarray,
     max_lag: int,
-) -> Tuple[int, float]:
+) -> tuple[int, float]:
     """Retorna (melhor_lag, coeficiente) via correlação de Pearson em cada lag.
 
     ``solar_series`` é deslocado para trás (solar precede bio).
@@ -90,7 +90,7 @@ def _cross_correlate_at_lags(
     best_r = 0.0
 
     n = len(solar_series)
-    for lag in range(0, min(max_lag + 1, n - 10)):
+    for lag in range(min(max_lag + 1, n - 10)):
         solar_shifted = solar_series[: n - lag] if lag > 0 else solar_series
         bio_aligned = bio_series[lag:] if lag > 0 else bio_series
 
@@ -142,7 +142,7 @@ def _identify_vulnerable_periods(
     merged: pd.DataFrame,
     mood_col: str = "mood_score",
     kp_col: str = "kp_index",
-) -> List[str]:
+) -> list[str]:
     """Identifica meses onde o humor desvia mais que 1 desvio-padrão abaixo da média pessoal."""
     if "timestamp" not in merged.columns:
         return []
@@ -178,7 +178,7 @@ def calibrate_passport(
     sdnn_col: str = "hrv_sdnn",
     mood_col: str = "mood_score",
     hr_col: str = "hr_mean",
-    solar_cols: Optional[List[str]] = None,
+    solar_cols: list[str] | None = None,
 ) -> PsychoGeomagneticPassport:
     """Calibra passaporte psico-geomagnético a partir de dados longitudinais.
 
@@ -224,8 +224,8 @@ def calibrate_passport(
 
     # --- Correlação cruzada por variável solar ---
     bio_array = np.asarray(merged[hrv_col], dtype=np.float64)
-    coefficients: Dict[str, float] = {}
-    lags: Dict[str, int] = {}
+    coefficients: dict[str, float] = {}
+    lags: dict[str, int] = {}
 
     for solar_col in solar_cols:
         short = _SOLAR_COL_MAP.get(solar_col, solar_col)
@@ -263,7 +263,7 @@ def calibrate_passport(
 
     return PsychoGeomagneticPassport(
         subject_id=subject_id,
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         baseline_rmssd=baseline_rmssd,
         baseline_sdnn=baseline_sdnn,
         baseline_mood=baseline_mood,

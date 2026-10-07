@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-from darwin_heliobiology.pipelines.hrv_mood import build_hrv_mood_records, records_to_dataframe
+from darwin_heliobiology.pipelines.hrv_mood import (
+    build_hrv_mood_records,
+    records_to_dataframe,
+)
 
 
 def test_build_hrv_mood_records_generates_windows():
-    base_ts = datetime(2025, 1, 1, 8, 0, tzinfo=timezone.utc)
+    base_ts = datetime(2025, 1, 1, 8, 0, tzinfo=UTC)
     rr = [900 + ((-1) ** i) * 20 for i in range(12)]
     timestamps = [base_ts + timedelta(minutes=i) for i in range(len(rr))]
     responses = {"PANAS_pos": 4, "PANAS_neg": 1}

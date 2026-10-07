@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -34,10 +33,10 @@ class KairosForecaster:
 
     def __init__(self, smoothing_factor: float = 0.3):
         self.smoothing_factor = smoothing_factor
-        self._kp_trend: Optional[FloatArray] = None
-        self._dst_trend: Optional[FloatArray] = None
+        self._kp_trend: FloatArray | None = None
+        self._dst_trend: FloatArray | None = None
 
-    def fit(self, kp_series: List[SolarIndex], dst_series: List[SolarIndex]) -> None:
+    def fit(self, kp_series: list[SolarIndex], dst_series: list[SolarIndex]) -> None:
         if not kp_series or not dst_series:
             raise ValueError("Séries Kp/Dst não podem ser vazias")
 

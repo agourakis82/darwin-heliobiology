@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional
 
-from darwin_heliobiology.services.aletheia_validator import AletheiaValidator, StudyEffect
+from darwin_heliobiology.services.aletheia_validator import (
+    AletheiaValidator,
+    StudyEffect,
+)
 
 
 @dataclass(slots=True)
@@ -27,8 +29,8 @@ class LiteratureStudy:
     n: int
     effect_type: str  # "rr", "r", "or", "d", "percent_change"
     effect_size: float
-    ci_lower: Optional[float]
-    ci_upper: Optional[float]
+    ci_lower: float | None
+    ci_upper: float | None
     evidence_grade: str  # "A", "B", "C", "D"
     notes: str
 
@@ -37,7 +39,7 @@ class LiteratureStudy:
 # Fontes: docs/SCIENTIFIC_FOUNDATIONS.md, referências 1-12.
 # Efeitos reportados na escala original do estudo.
 
-CURATED_STUDIES: List[LiteratureStudy] = [
+CURATED_STUDIES: list[LiteratureStudy] = [
     # --- Cardiovascular (Grau A) ---
     LiteratureStudy(
         study_id="vencloviene2022",
@@ -179,21 +181,21 @@ CURATED_STUDIES: List[LiteratureStudy] = [
 ]
 
 
-def get_studies_by_domain(domain: str) -> List[LiteratureStudy]:
+def get_studies_by_domain(domain: str) -> list[LiteratureStudy]:
     """Filtra estudos por domínio (cardiovascular, hrv, suicide, mechanism)."""
     return [s for s in CURATED_STUDIES if s.domain == domain]
 
 
 def studies_to_study_effects(
-    studies: List[LiteratureStudy],
-) -> List[StudyEffect]:
+    studies: list[LiteratureStudy],
+) -> list[StudyEffect]:
     """Converte estudos catalogados para StudyEffect (metaanálise).
 
     - Estudos com ``effect_type="r"`` → Fisher-z transform
     - Estudos com ``effect_type="rr"`` → log(RR) com variância estimada
     - Outros tipos são ignorados (e.g. percent_change não é combinável)
     """
-    effects: List[StudyEffect] = []
+    effects: list[StudyEffect] = []
     for s in studies:
         if s.effect_type == "r" and s.n >= 4:
             effects.append(

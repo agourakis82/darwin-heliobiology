@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 from scipy import stats as scipy_stats
@@ -42,8 +42,8 @@ class MetaAnalysisResult:
     i_squared: float
     z_score: float
     p_value: float
-    studies: List[StudyEffect]
-    weights: List[float]
+    studies: list[StudyEffect]
+    weights: list[float]
 
 
 class AletheiaValidator:
@@ -54,7 +54,7 @@ class AletheiaValidator:
         series_a: Iterable[float],
         series_b: Iterable[float],
         expectation: ScientificExpectation,
-    ) -> Tuple[float, bool]:
+    ) -> tuple[float, bool]:
         values_a = np.asarray(list(series_a), dtype=float)
         values_b = np.asarray(list(series_b), dtype=float)
         if values_a.size != values_b.size:
@@ -93,7 +93,7 @@ class AletheiaValidator:
 
     def meta_analyze(
         self,
-        studies: List[StudyEffect],
+        studies: list[StudyEffect],
         confidence: float = 0.95,
     ) -> MetaAnalysisResult:
         """Metaanálise de efeitos aleatórios via DerSimonian-Laird.
@@ -165,7 +165,7 @@ class AletheiaValidator:
         )
 
     @staticmethod
-    def heterogeneity_summary(result: MetaAnalysisResult) -> Dict[str, str]:
+    def heterogeneity_summary(result: MetaAnalysisResult) -> dict[str, str]:
         """Interpretação legível da heterogeneidade."""
         if result.i_squared < 25:
             level = "baixa"

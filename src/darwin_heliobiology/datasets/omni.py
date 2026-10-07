@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -21,7 +20,7 @@ DEFAULT_TIMEOUT = 30
 # Mapeamento coluna 0-indexed → nome semântico (referência: omni2.text)
 # Col 1=Year, 2=DOY, 3=Hour, 13=Bx, 16=By_GSM, 17=Bz_GSM,
 # 24=Proton density, 25=Speed, 29=Flow pressure, 39=Kp, 41=Dst
-OMNI2_COL_MAP: Dict[int, str] = {
+OMNI2_COL_MAP: dict[int, str] = {
     0: "year",
     1: "doy",
     2: "hour",
@@ -36,7 +35,7 @@ OMNI2_COL_MAP: Dict[int, str] = {
 }
 
 # Valores de preenchimento (fill) que indicam dados ausentes
-FILL_VALUES: Dict[str, float] = {
+FILL_VALUES: dict[str, float] = {
     "bx_gsm_nt": 999.9,
     "by_gsm_nt": 999.9,
     "bz_gsm_nt": 999.9,
@@ -54,13 +53,13 @@ class OMNIIngestionResult:
 
     output_path: Path
     total_records: int
-    years: List[int]
+    years: list[int]
 
 
 def _download_omni2_year(
     year: int,
     *,
-    session: Optional[requests.Session] = None,
+    session: requests.Session | None = None,
     base_url: str = OMNI2_BASE_URL,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> str:
@@ -120,13 +119,13 @@ def _persist_df(df: pd.DataFrame, path: Path) -> Path:
 
 def fetch_and_persist_omni(
     *,
-    years: List[int],
+    years: list[int],
     output_dir: Path = Path("data/raw/nasa_omni"),
     suffix: str = ".parquet",
-    session: Optional[requests.Session] = None,
+    session: requests.Session | None = None,
 ) -> OMNIIngestionResult:
     """Baixa dados OMNI2 hourly para os anos solicitados e persiste."""
-    frames: List[pd.DataFrame] = []
+    frames: list[pd.DataFrame] = []
     for year in years:
         raw = _download_omni2_year(year, session=session)
         df = _parse_omni2_text(raw)

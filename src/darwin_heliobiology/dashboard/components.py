@@ -36,7 +36,7 @@ def build_kp_timeseries(
             y=df["kp_index"],
             mode="lines",
             name="Kp",
-            line=dict(color="#FF6B6B", width=2),
+            line={"color": "#FF6B6B", "width": 2},
         )
     )
 
@@ -57,7 +57,7 @@ def build_kp_timeseries(
     )
 
     fig.update_layout(
-        title=dict(text=title, x=0.5, xanchor="center"),
+        title={"text": title, "x": 0.5, "xanchor": "center"},
         xaxis_title="Tempo",
         yaxis_title="Índice Kp",
         height=height,
@@ -98,7 +98,7 @@ def build_helio_mind_timeseries(
             y=df["helio_mind_score"],
             mode="lines",
             name="HelioMind Score",
-            line=dict(color="#4ECDC4", width=2),
+            line={"color": "#4ECDC4", "width": 2},
             fill="tozeroy",
             fillcolor="rgba(78, 205, 196, 0.2)",
         )
@@ -130,10 +130,10 @@ def build_helio_mind_timeseries(
     )
 
     fig.update_layout(
-        title=dict(text=title, x=0.5, xanchor="center"),
+        title={"text": title, "x": 0.5, "xanchor": "center"},
         xaxis_title="Tempo",
         yaxis_title="HelioMind Score (0-1)",
-        yaxis=dict(range=[0, 1]),
+        yaxis={"range": [0, 1]},
         height=height,
         template="plotly_white",
         hovermode="x unified",
@@ -179,7 +179,7 @@ def build_forecast_comparison(
             y=actual.values,
             mode="lines",
             name="Observado",
-            line=dict(color="#333333", width=2),
+            line={"color": "#333333", "width": 2},
         )
     )
 
@@ -190,7 +190,7 @@ def build_forecast_comparison(
             y=kairos_pred.values,
             mode="lines",
             name="Previsão Kairos",
-            line=dict(color="#FF6B6B", width=2, dash="dash"),
+            line={"color": "#FF6B6B", "width": 2, "dash": "dash"},
         )
     )
 
@@ -201,18 +201,18 @@ def build_forecast_comparison(
             y=neural_pred.values,
             mode="lines",
             name="Previsão Neural",
-            line=dict(color="#4ECDC4", width=2, dash="dot"),
+            line={"color": "#4ECDC4", "width": 2, "dash": "dot"},
         )
     )
 
     fig.update_layout(
-        title=dict(text=title, x=0.5, xanchor="center"),
+        title={"text": title, "x": 0.5, "xanchor": "center"},
         xaxis_title="Tempo",
         yaxis_title="Valor",
         height=height,
         template="plotly_white",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "center", "x": 0.5},
     )
 
     return fig
@@ -271,7 +271,7 @@ def build_meta_forest_plot(
                 x=[lower, upper],
                 y=[y, y],
                 mode="lines",
-                line=dict(color="black", width=2),
+                line={"color": "black", "width": 2},
                 showlegend=False,
                 hoverinfo="none",
             )
@@ -283,7 +283,7 @@ def build_meta_forest_plot(
                 x=[effect],
                 y=[y],
                 mode="markers",
-                marker=dict(size=10, color="#FF6B6B"),
+                marker={"size": 10, "color": "#FF6B6B"},
                 name=f"Estudo {i + 1}" if i == 0 else None,
                 showlegend=(i == 0),
                 hovertemplate=f"<b>{labels[i]}</b><br>Efeito: {effect:.3f}<br>CI 95%: [{lower:.3f}, {upper:.3f}]<extra></extra>",
@@ -298,7 +298,7 @@ def build_meta_forest_plot(
     )
 
     fig.update_layout(
-        title=dict(text=title, x=0.5, xanchor="center"),
+        title={"text": title, "x": 0.5, "xanchor": "center"},
         xaxis_title="Tamanho de Efeito",
         yaxis_title="",
         height=height,

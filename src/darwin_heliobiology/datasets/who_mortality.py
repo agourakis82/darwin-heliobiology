@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional
 from zipfile import ZipFile
 
 import pandas as pd
@@ -13,7 +12,7 @@ import requests
 
 DEFAULT_TIMEOUT = 60
 
-WHO_MORTALITY_URLS: Dict[str, str] = {
+WHO_MORTALITY_URLS: dict[str, str] = {
     "icd10_part1": (
         "https://cdn.who.int/media/docs/default-source/world-health-data-platform"
         "/mortality-raw-data/morticd10_part1.zip"
@@ -49,7 +48,7 @@ WHO_MORTALITY_URLS: Dict[str, str] = {
 }
 
 # ICD-10: autolesão intencional (X60-X84) e eventos de intenção indeterminada (Y10-Y34)
-SUICIDE_ICD10_PREFIXES: List[str] = [f"X{i}" for i in range(60, 85)] + [
+SUICIDE_ICD10_PREFIXES: list[str] = [f"X{i}" for i in range(60, 85)] + [
     f"Y{i}" for i in range(10, 35)
 ]
 
@@ -59,7 +58,7 @@ class WHOIngestionResult:
     """Resultado da ingestão de dados WHO mortality."""
 
     output_dir: Path
-    files_extracted: List[str]
+    files_extracted: list[str]
     total_size_bytes: int
 
 
@@ -67,16 +66,16 @@ def _download_and_extract_zip(
     url: str,
     output_dir: Path,
     *,
-    session: Optional[requests.Session] = None,
+    session: requests.Session | None = None,
     timeout: int = DEFAULT_TIMEOUT,
-) -> List[str]:
+) -> list[str]:
     """Baixa ZIP e extrai conteúdo para ``output_dir``."""
     sess = session or requests.Session()
     response = sess.get(url, timeout=timeout)
     response.raise_for_status()
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    extracted: List[str] = []
+    extracted: list[str] = []
     with ZipFile(BytesIO(response.content)) as archive:
         for name in archive.namelist():
             archive.extract(name, output_dir)
@@ -86,9 +85,9 @@ def _download_and_extract_zip(
 
 def fetch_who_mortality(
     *,
-    parts: Optional[List[str]] = None,
+    parts: list[str] | None = None,
     output_dir: Path = Path("data/raw/who"),
-    session: Optional[requests.Session] = None,
+    session: requests.Session | None = None,
     include_population: bool = True,
 ) -> WHOIngestionResult:
     """Baixa CSVs de mortalidade da WHO e extrai para ``output_dir``.
@@ -108,7 +107,7 @@ def fetch_who_mortality(
     if include_population and "population" not in keys_to_fetch:
         keys_to_fetch.append("population")
 
-    all_extracted: List[str] = []
+    all_extracted: list[str] = []
     for key in keys_to_fetch:
         url = WHO_MORTALITY_URLS[key]
         files = _download_and_extract_zip(url, output_dir, session=session)

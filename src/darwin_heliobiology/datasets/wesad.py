@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
 from zipfile import ZipFile
 
 import pandas as pd
@@ -18,7 +18,7 @@ from darwin_heliobiology.pipelines.hrv_mood import (
 WESAD_DOWNLOAD_URL = "https://uni-siegen.sciebo.de/s/pYjguvSJDKcbpqs/download"
 DEFAULT_SCALES = {"PANAS_pos": (1.0, 5.0), "PANAS_neg": (1.0, 5.0)}
 
-LABEL_RESPONSES: Dict[str, Dict[str, float]] = {
+LABEL_RESPONSES: dict[str, dict[str, float]] = {
     "baseline": {"PANAS_pos": 4.2, "PANAS_neg": 1.2},
     "stress": {"PANAS_pos": 2.2, "PANAS_neg": 3.8},
     "amusement": {"PANAS_pos": 4.5, "PANAS_neg": 1.5},
@@ -35,7 +35,7 @@ NUMERIC_LABELS = {
 @dataclass(slots=True)
 class WESADIngestionResult:
     output_path: Path
-    records: List[HRVMoodRecord]
+    records: list[HRVMoodRecord]
 
 
 def download_wesad(
@@ -88,13 +88,13 @@ def _split_by_label(df: pd.DataFrame) -> Iterable[pd.DataFrame]:
 
 def _records_from_rr_csv(
     csv_path: Path, *, subject_id: str, dataset: str, window_minutes: int, min_samples: int
-) -> List[HRVMoodRecord]:
+) -> list[HRVMoodRecord]:
     df = pd.read_csv(csv_path)
     if "timestamp" not in df.columns or "rr_ms" not in df.columns:
         raise ValueError(f"Arquivo {csv_path} precisa conter colunas timestamp e rr_ms")
 
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    records: List[HRVMoodRecord] = []
+    records: list[HRVMoodRecord] = []
 
     for segment in _split_by_label(df):
         label_col = segment.get("label")
@@ -137,7 +137,7 @@ def build_wesad_hrv_mood(
     output_path = output_path.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    records: List[HRVMoodRecord] = []
+    records: list[HRVMoodRecord] = []
     for subject_dir in sorted(root.glob("S*/")):
         subject_id = subject_dir.name
         candidates = [subject_dir / "rr.csv", subject_dir / "rr_intervals.csv"]
@@ -167,11 +167,11 @@ def build_wesad_hrv_mood(
 
 
 __all__ = [
-    "WESAD_DOWNLOAD_URL",
     "DEFAULT_SCALES",
     "LABEL_RESPONSES",
+    "WESAD_DOWNLOAD_URL",
+    "WESADIngestionResult",
+    "build_wesad_hrv_mood",
     "download_wesad",
     "extract_wesad",
-    "build_wesad_hrv_mood",
-    "WESADIngestionResult",
 ]

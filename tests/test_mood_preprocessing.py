@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from darwin_heliobiology.preprocessing.mood import MOOD_LABELS, make_mood_score, normalize_likert
+from darwin_heliobiology.preprocessing.mood import (
+    MOOD_LABELS,
+    make_mood_score,
+    normalize_likert,
+)
 
 
 def test_normalize_likert_bounds():

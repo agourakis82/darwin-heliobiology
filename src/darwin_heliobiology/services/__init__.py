@@ -1,6 +1,6 @@
 """Serviços heliobiológicos computacionais."""
 
-from .kairos_forecaster import KairosForecaster, ForecastResult
 from .aletheia_validator import AletheiaValidator, ScientificExpectation
+from .kairos_forecaster import ForecastResult, KairosForecaster
 
-__all__ = ["KairosForecaster", "ForecastResult", "AletheiaValidator", "ScientificExpectation"]
+__all__ = ["AletheiaValidator", "ForecastResult", "KairosForecaster", "ScientificExpectation"]

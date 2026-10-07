@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -22,12 +22,12 @@ class DummyAtlas:
     def __init__(self, observation: SolarObservation) -> None:
         self._observation = observation
 
-    def snapshot(self, hours: int = 24) -> SolarObservation:  # noqa: D401 - interface simulada
+    def snapshot(self, hours: int = 24) -> SolarObservation:
         return self._observation
 
 
 def _dummy_observation() -> SolarObservation:
-    base = datetime(2025, 1, 1, 6, 0, tzinfo=timezone.utc)
+    base = datetime(2025, 1, 1, 6, 0, tzinfo=UTC)
     kp = [
         SolarIndex(timestamp=base - timedelta(minutes=idx), value=4.5, label="Kp")
         for idx in range(4)

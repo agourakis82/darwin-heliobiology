@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -12,9 +11,7 @@ from darwin_heliobiology.core.solar_atlas import SolarAtlas
 from darwin_heliobiology.metrics.helio_index import compute_helio_mind_index
 
 
-def build_heliomind_dataframe(
-    atlas: Optional[SolarAtlas] = None, *, hours: int = 24
-) -> pd.DataFrame:
+def build_heliomind_dataframe(atlas: SolarAtlas | None = None, *, hours: int = 24) -> pd.DataFrame:
     """Constrói um DataFrame contendo o HelioMind Index para a janela informada."""
 
     atlas = atlas or SolarAtlas()

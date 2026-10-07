@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -61,8 +61,8 @@ class OMNIHourlyRecord:
 class SolarObservation:
     """Fotografia agregada dos principais indicadores solares."""
 
-    kp_series: List[SolarIndex]
-    dst_series: List[SolarIndex]
-    solar_wind: List[SolarWindSample]
-    imf: List[IMFVector]
-    metadata: Optional[Dict[str, Any]] = None
+    kp_series: list[SolarIndex]
+    dst_series: list[SolarIndex]
+    solar_wind: list[SolarWindSample]
+    imf: list[IMFVector]
+    metadata: dict[str, Any] | None = None

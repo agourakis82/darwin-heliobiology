@@ -7,7 +7,10 @@ Ranges de ScientificExpectation baseados em:
   não usar como expectativa.
 """
 
-from darwin_heliobiology.services.aletheia_validator import AletheiaValidator, ScientificExpectation
+from darwin_heliobiology.services.aletheia_validator import (
+    AletheiaValidator,
+    ScientificExpectation,
+)
 
 
 def test_validate_correlation_exceeds_expected_range():

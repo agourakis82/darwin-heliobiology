@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List
 
 import numpy as np
 
@@ -49,10 +49,10 @@ def aggregate_hrv_series(series: Iterable[float]) -> AutonomicSnapshot:
     return AutonomicSnapshot(rmssd_ms=rmssd, sdnn_ms=sdnn, heart_rate_bpm=hr_bpm)
 
 
-def mood_normalization(scores: Dict[str, float]) -> Dict[str, float]:
+def mood_normalization(scores: dict[str, float]) -> dict[str, float]:
     """Normaliza escalas clínicas (PHQ-9, GAD-7) para 0..1."""
 
-    normalized: Dict[str, float] = {}
+    normalized: dict[str, float] = {}
     for key, value in scores.items():
         if key.lower().startswith("phq"):
             normalized[key] = float(np.clip(value / 27.0, 0.0, 1.0))
@@ -63,7 +63,7 @@ def mood_normalization(scores: Dict[str, float]) -> Dict[str, float]:
     return normalized
 
 
-def merge_multimodal(observation: Dict[str, float], mood: Dict[str, float]) -> List[float]:
+def merge_multimodal(observation: dict[str, float], mood: dict[str, float]) -> list[float]:
     """Concatena variáveis geomagnéticas e clínicas em embedding simples."""
 
     geomag = [observation.get("kp", 0.0), observation.get("dst", 0.0), observation.get("bz", 0.0)]
