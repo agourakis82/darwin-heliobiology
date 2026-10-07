@@ -98,7 +98,7 @@ def compute_kairos_baseline(
     elapsed = time.monotonic() - start
 
     y_true_kp = np.asarray(test_df[target_col].values[:horizon], dtype=np.float64)
-    if float(y_true_kp.max()) > 9.5:
+    if float(np.max(y_true_kp)) > 9.5:
         y_true_kp = y_true_kp / 10.0
     y_pred = forecast.kp_forecast[:horizon]
 

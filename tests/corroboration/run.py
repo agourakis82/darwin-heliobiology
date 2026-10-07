@@ -20,9 +20,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "src"))
-
 from darwin_heliobiology.core.geomagnetic_atlas import (
     build_geomagnetic_atlas,
 )
@@ -45,6 +42,7 @@ from darwin_heliobiology.services.aletheia_validator import (
 )
 from darwin_heliobiology.services.passport import _cross_correlate_at_lags
 
+ROOT = Path(__file__).resolve().parents[2]
 TOKEN = re.compile(r"^([+-])(\d+)p([+-]\d+)$")
 
 
@@ -97,7 +95,10 @@ def rel(a: float | None, b: float | None) -> float:
 def add(case: str, q: str, s: float | None, p: float | None, tol: float = 1e-9) -> None:
     r = rel(s, p)
     status = "ok" if r <= tol else "DIVERGE"
-    f = lambda x: "NA" if x is None else (f"{x:.12g}")
+
+    def f(x: float | None) -> str:
+        return "NA" if x is None else f"{x:.12g}"
+
     ROWS.append((case, q, f(s), f(p), f"{r:.2e}" if math.isfinite(r) else "inf", status))
 
 
@@ -153,8 +154,10 @@ def helio(blocks: dict[str, list[list[str]]]) -> None:
         case = f"helio {path.name}"
         r = compute_helio_mind_index(helio_case(path))
         got = {
-            (l[0] + " " + l[1] if l[0] == "comp" else l[0]): (l[2:] if l[0] == "comp" else l[1:])
-            for l in lines
+            (row[0] + " " + row[1] if row[0] == "comp" else row[0]): (
+                row[2:] if row[0] == "comp" else row[1:]
+            )
+            for row in lines
         }
         comps = [
             ("kp", r.components.kp_activity),
@@ -197,7 +200,7 @@ def calib(blocks: dict[str, list[list[str]]]) -> None:
             "pressure": "pressure_rho_v2",
             "kp_var": "kp_variability_12h",
         }
-        got = {(l[0], l[1]): l[2] for l in lines if len(l) >= 3}
+        got = {(row[0], row[1]): row[2] for row in lines if len(row) >= 3}
         case = f"calib {files[0].name}"
         for k, v in names.items():
             d = dist[v]
@@ -220,16 +223,16 @@ def atlas(blocks: dict[str, list[list[str]]]) -> None:
         r = build_geomagnetic_atlas(df, res)
         case = f"atlas {res} {files[0].name}"
         sig = {s.period_label: s for s in r.signatures}
-        rows = [l for l in lines if l[0] == "period"]
+        rows = [row for row in lines if row[0] == "period"]
         addi(case, "n_periods", len(rows), len(sig))
         worst = 0.0
         bad = 0
-        for l in rows:
-            s = sig.get(l[1])
+        for row in rows:
+            s = sig.get(row[1])
             if s is None:
                 bad += 1
                 continue
-            sx = [tok(x) for x in l[2:5]] + [tok(l[7]), tok(l[8])]
+            sx = [tok(x) for x in row[2:5]] + [tok(row[7]), tok(row[8])]
             px = [s.mean_kp, s.mean_dst, s.mean_bz, s.min_dst, s.bz_southward_fraction]
             px = [None if (isinstance(x, float) and math.isnan(x)) else x for x in px]
             for a, b in zip(sx, px):
@@ -237,7 +240,7 @@ def atlas(blocks: dict[str, list[list[str]]]) -> None:
                 if rr > 1e-9 and not (a is not None and b is not None and abs(a - b) < 1e-12):
                     bad += 1
                 worst = max(worst, rr if math.isfinite(rr) else 1.0)
-            if int(l[5]) != s.storm_hours or int(l[6]) != s.valid_hours:
+            if int(row[5]) != s.storm_hours or int(row[6]) != s.valid_hours:
                 bad += 1
         ROWS.append(
             (
@@ -263,7 +266,7 @@ def meta(blocks: dict[str, list[list[str]]]) -> None:
             if t and t[0] == "STUDY":
                 studies.append(StudyEffect(t[1], float(t[2]), float(t[3]), 0, ""))
         r = AletheiaValidator().meta_analyze(studies)
-        got = {l[0]: l[1] for l in lines if len(l) >= 2}
+        got = {row[0]: row[1] for row in lines if len(row) >= 2}
         case = f"meta {path.name}"
         for key, py in (
             ("Q", r.q_statistic),
@@ -302,7 +305,7 @@ def passport(blocks: dict[str, list[list[str]]]) -> None:
             continue
         path = ROOT / header.split()[1]
         x, y, lag = read_case_arrays(path)
-        got = {l[0]: l[1] for l in lines if len(l) == 2}
+        got = {row[0]: row[1] for row in lines if len(row) == 2}
         # Python: scipy pearsonr por lag; `_cross_correlate_at_lags` devolve (melhor_lag, r)
         best_lag, r = _cross_correlate_at_lags(x, y, lag)
         case = f"passport {path.name}"
