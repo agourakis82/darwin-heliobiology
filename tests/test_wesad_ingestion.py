@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -16,7 +16,7 @@ def _create_sample_wesad_zip(zip_path: Path) -> None:
             csv_path = Path(subject) / "rr.csv"
             rows = [
                 {
-                    "timestamp": datetime(2025, 1, 1, 8, i, tzinfo=timezone.utc).isoformat(),
+                    "timestamp": datetime(2025, 1, 1, 8, i, tzinfo=UTC).isoformat(),
                     "rr_ms": 800 + i * 5,
                     "label": "baseline" if subject == "S2" else "stress",
                 }
@@ -44,5 +44,5 @@ def test_build_wesad_hrv_mood_generates_dataframe(tmp_path: Path) -> None:
     assert output.exists()
     df = pd.read_csv(output)
     assert not df.empty
-    assert set(["hrv_rmssd", "dataset", "mood_label"]).issubset(df.columns)
+    assert {"hrv_rmssd", "dataset", "mood_label"}.issubset(df.columns)
     assert len(result.records) == len(df)

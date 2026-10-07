@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, List, Mapping, Sequence
 
 import pandas as pd
 
@@ -33,7 +33,7 @@ def build_hrv_mood_records(
     timestamps: Sequence[datetime],
     window_minutes: int = 30,
     min_samples: int = 2,
-) -> List[HRVMoodRecord]:
+) -> list[HRVMoodRecord]:
     """Cria registros HRV+Mood alinhados usando janelas temporais regulares."""
 
     if len(rr_intervals_ms) != len(timestamps):
@@ -47,7 +47,7 @@ def build_hrv_mood_records(
         }
     ).sort_values("timestamp")
 
-    records: List[HRVMoodRecord] = []
+    records: list[HRVMoodRecord] = []
     first_ts = df["timestamp"].iloc[0]
     grouper = pd.Grouper(
         key="timestamp", freq=f"{window_minutes}min", label="right", closed="right", origin=first_ts

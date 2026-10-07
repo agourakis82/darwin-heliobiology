@@ -7,7 +7,7 @@ perfis estatísticos que revelam padrões recorrentes de atividade geomagnética
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -29,10 +29,10 @@ class GeomagneticSignature:
 class AtlasResult:
     """Resultado do atlas temporal de assinaturas geomagnéticas."""
 
-    signatures: List[GeomagneticSignature]
+    signatures: list[GeomagneticSignature]
     resolution: str
-    year_range: Tuple[int, int]
-    metadata: Dict[str, Any]
+    year_range: tuple[int, int]
+    metadata: dict[str, Any]
 
 
 _RESOLUTION_FREQ = {
@@ -90,7 +90,7 @@ def build_geomagnetic_atlas(
     freq = _RESOLUTION_FREQ[resolution]
     grouper = pd.Grouper(key="timestamp", freq=freq)
 
-    signatures: List[GeomagneticSignature] = []
+    signatures: list[GeomagneticSignature] = []
     for period_end, group in df.groupby(grouper):
         if not isinstance(period_end, pd.Timestamp) or group.empty:
             continue

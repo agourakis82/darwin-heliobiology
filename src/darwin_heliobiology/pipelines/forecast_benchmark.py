@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -29,13 +29,13 @@ class BenchmarkResult:
     horizon: int
     mae: float
     rmse: float
-    mape: Optional[float]
+    mape: float | None
     training_time_seconds: float
     n_train: int
     n_test: int
 
 
-def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
     """Computa MAE, RMSE e MAPE."""
     min_len = min(len(y_true), len(y_pred))
     y_t = y_true[:min_len].astype(np.float64)
@@ -51,7 +51,7 @@ def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]
     mae = float(np.mean(np.abs(y_t - y_p)))
     rmse = float(np.sqrt(np.mean(np.square(y_t - y_p))))
 
-    metrics: Dict[str, float] = {"mae": mae, "rmse": rmse}
+    metrics: dict[str, float] = {"mae": mae, "rmse": rmse}
     nonzero = np.abs(y_t) > 1e-8
     if nonzero.any():
         metrics["mape"] = float(np.mean(np.abs((y_t[nonzero] - y_p[nonzero]) / y_t[nonzero])) * 100)
@@ -155,11 +155,11 @@ def run_benchmark(
     horizon: int = 24,
     max_steps: int = 500,
     target_col: str = "kp_index",
-    models: Optional[List[str]] = None,
-) -> List[BenchmarkResult]:
+    models: list[str] | None = None,
+) -> list[BenchmarkResult]:
     """Roda benchmark completo: Kairos + modelos neurais."""
     model_list = models or ["kairos", "tft", "patchtst"]
-    results: List[BenchmarkResult] = []
+    results: list[BenchmarkResult] = []
 
     # Split temporal: últimas 'horizon * 7' linhas para teste (1 semana)
     test_size = min(horizon * 7, int(len(omni_df) * 0.2))
@@ -185,9 +185,9 @@ def run_benchmark(
     return results
 
 
-def benchmark_to_dataframe(results: List[BenchmarkResult]) -> pd.DataFrame:
+def benchmark_to_dataframe(results: list[BenchmarkResult]) -> pd.DataFrame:
     """Converte resultados em DataFrame."""
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for r in results:
         rows.append(
             {
@@ -204,7 +204,7 @@ def benchmark_to_dataframe(results: List[BenchmarkResult]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def print_benchmark_summary(results: List[BenchmarkResult]) -> None:
+def print_benchmark_summary(results: list[BenchmarkResult]) -> None:
     """Imprime tabela comparativa."""
     print(f"\n{'=' * 70}")
     print("Forecast Benchmark — Kairos vs Neural Models")

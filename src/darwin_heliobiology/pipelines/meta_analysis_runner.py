@@ -7,7 +7,7 @@ Roda metaanálises DerSimonian-Laird usando o catálogo curado de estudos
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -29,12 +29,12 @@ class DomainMetaResult:
     evidence_grade: str
     result: MetaAnalysisResult
     interpretation: str
-    caveats: List[str] = field(default_factory=list)
+    caveats: list[str] = field(default_factory=list)
 
 
 # ── Domínios e configuração ─────────────────────────────────────────────────
 
-_DOMAIN_CONFIG: Dict[str, Dict[str, Any]] = {
+_DOMAIN_CONFIG: dict[str, dict[str, Any]] = {
     "cardiovascular": {
         "grade": "A",
         "interpretation_positive": (
@@ -87,8 +87,8 @@ _DOMAIN_CONFIG: Dict[str, Dict[str, Any]] = {
 def run_single_domain_meta(
     domain: str,
     *,
-    validator: Optional[AletheiaValidator] = None,
-) -> Optional[DomainMetaResult]:
+    validator: AletheiaValidator | None = None,
+) -> DomainMetaResult | None:
     """Roda metaanálise para um domínio.  Retorna None se < 2 efeitos combináveis."""
     v = validator or AletheiaValidator()
     config = _DOMAIN_CONFIG.get(domain)
@@ -116,12 +116,12 @@ def run_single_domain_meta(
 
 
 def run_domain_meta_analyses(
-    domains: Optional[List[str]] = None,
-) -> List[DomainMetaResult]:
+    domains: list[str] | None = None,
+) -> list[DomainMetaResult]:
     """Roda metaanálises para todos os domínios solicitados."""
     target_domains = domains or list(_DOMAIN_CONFIG.keys())
     validator = AletheiaValidator()
-    results: List[DomainMetaResult] = []
+    results: list[DomainMetaResult] = []
     for domain in target_domains:
         r = run_single_domain_meta(domain, validator=validator)
         if r is not None:
@@ -129,9 +129,9 @@ def run_domain_meta_analyses(
     return results
 
 
-def meta_results_to_dataframe(results: List[DomainMetaResult]) -> pd.DataFrame:
+def meta_results_to_dataframe(results: list[DomainMetaResult]) -> pd.DataFrame:
     """Converte resultados em DataFrame para persistência."""
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for r in results:
         het = AletheiaValidator.heterogeneity_summary(r.result)
         rows.append(
@@ -154,7 +154,7 @@ def meta_results_to_dataframe(results: List[DomainMetaResult]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def print_meta_summary(results: List[DomainMetaResult]) -> None:
+def print_meta_summary(results: list[DomainMetaResult]) -> None:
     """Imprime resumo legível das metaanálises."""
     print(f"\n{'=' * 65}")
     print("Metaanálise por Domínio — Estudos Curados")

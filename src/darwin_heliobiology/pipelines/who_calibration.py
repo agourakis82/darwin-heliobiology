@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -24,8 +24,8 @@ class WHOCalibrationConfig:
     """Configuração para calibração de pesos via WHO."""
 
     outcome: str = "suicide"
-    icd10_prefixes: List[str] = field(default_factory=lambda: [f"X{i}" for i in range(60, 85)])
-    solar_components: List[str] = field(
+    icd10_prefixes: list[str] = field(default_factory=lambda: [f"X{i}" for i in range(60, 85)])
+    solar_components: list[str] = field(
         default_factory=lambda: [
             "kp_activity",
             "dst_storm_intensity",
@@ -44,9 +44,9 @@ class PanelRegressionResult:
 
     outcome: str
     n_country_years: int
-    coefficients: Dict[str, float]
-    std_errors: Dict[str, float]
-    p_values: Dict[str, float]
+    coefficients: dict[str, float]
+    std_errors: dict[str, float]
+    p_values: dict[str, float]
     r_squared: float
     evidence_grade: str = "C"
 
@@ -55,10 +55,10 @@ class PanelRegressionResult:
 class CalibratedWeights:
     """Pesos calibrados para o HelioMind Index."""
 
-    weights: Dict[str, float]
+    weights: dict[str, float]
     source: str
     evidence_grade: str
-    regression_results: List[PanelRegressionResult]
+    regression_results: list[PanelRegressionResult]
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ def _load_mortality_annual(
     if not csv_files:
         return pd.DataFrame()
 
-    frames: List[pd.DataFrame] = []
+    frames: list[pd.DataFrame] = []
     for csv_path in csv_files:
         df = pd.read_csv(csv_path, low_memory=False)
         cause_col = "Cause" if "Cause" in df.columns else "cause"
@@ -317,7 +317,7 @@ def run_panel_regression(
 
     # OLS via normal equations
     try:
-        beta, residuals, rank, sv = np.linalg.lstsq(X, y, rcond=None)
+        beta, _residuals, _rank, _sv = np.linalg.lstsq(X, y, rcond=None)
     except np.linalg.LinAlgError:
         return PanelRegressionResult(
             outcome=config.outcome,
@@ -356,7 +356,7 @@ def run_panel_regression(
 
     return PanelRegressionResult(
         outcome=config.outcome,
-        n_country_years=int(len(y)),
+        n_country_years=len(y),
         coefficients=coefficients,
         std_errors=std_errs,
         p_values=p_values,
@@ -370,7 +370,7 @@ def run_panel_regression(
 
 
 def derive_weights_from_betas(
-    results: List[PanelRegressionResult],
+    results: list[PanelRegressionResult],
     *,
     floor: float = 0.05,
 ) -> CalibratedWeights:
@@ -384,7 +384,7 @@ def derive_weights_from_betas(
         Peso mínimo para cada componente.
     """
     # Agregar coeficientes absolutos
-    component_sums: Dict[str, float] = {}
+    component_sums: dict[str, float] = {}
     for r in results:
         for comp, coeff in r.coefficients.items():
             component_sums[comp] = component_sums.get(comp, 0.0) + abs(coeff)
@@ -448,7 +448,7 @@ def calibrated_weights_to_json(
     output_path = output_path.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data: Dict[str, Any] = {
+    data: dict[str, Any] = {
         "weights": calibrated.weights,
         "source": calibrated.source,
         "evidence_grade": calibrated.evidence_grade,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from darwin_heliobiology.metrics.helio_index import compute_helio_mind_index
 from darwin_heliobiology.models.solar import (
@@ -60,7 +60,7 @@ def _make_observation(
 
 
 def test_compute_heliomind_index_returns_components_within_bounds() -> None:
-    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=UTC)
     observation = _make_observation(
         base=base,
         kp=[2.0, 2.3, 2.7, 3.0],
@@ -81,7 +81,7 @@ def test_compute_heliomind_index_returns_components_within_bounds() -> None:
 
 
 def test_compute_heliomind_index_flags_high_risk_alerts() -> None:
-    base = datetime(2025, 5, 1, 12, 0, tzinfo=timezone.utc)
+    base = datetime(2025, 5, 1, 12, 0, tzinfo=UTC)
     observation = _make_observation(
         base=base,
         kp=[7.5, 8.0, 8.3, 8.5],

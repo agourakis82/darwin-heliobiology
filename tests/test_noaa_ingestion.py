@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -14,7 +14,7 @@ from darwin_heliobiology.datasets.noaa import fetch_and_persist_noaa
 
 def _recent(minutes: int) -> str:
     return (
-        (datetime.now(tz=timezone.utc) - timedelta(minutes=minutes))
+        (datetime.now(tz=UTC) - timedelta(minutes=minutes))
         .isoformat()
         .replace("+00:00", "Z")
     )

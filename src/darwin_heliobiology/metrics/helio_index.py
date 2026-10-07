@@ -10,13 +10,17 @@ Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.2 e data/processed/calibration_constants.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from darwin_heliobiology.models.solar import IMFVector, SolarObservation, SolarWindSample
+from darwin_heliobiology.models.solar import (
+    IMFVector,
+    SolarObservation,
+    SolarWindSample,
+)
 
 FloatArray = NDArray[np.float64]
 
@@ -59,13 +63,13 @@ class HelioMindIndexResult:
     score: float
     classification: str
     components: HelioMindComponents
-    alerts: List[str]
-    metadata: Dict[str, Any]
+    alerts: list[str]
+    metadata: dict[str, Any]
 
 
 def compute_helio_mind_index(
     snapshot: SolarObservation,
-    constants: Optional[NormalizationConstants] = None,
+    constants: NormalizationConstants | None = None,
 ) -> HelioMindIndexResult:
     """Calcula o HelioMind Index a partir de um ``SolarObservation``.
 
@@ -120,7 +124,7 @@ def compute_helio_mind_index(
 
     timestamp = _latest_timestamp(
         snapshot,
-        default=datetime.now(tz=timezone.utc),
+        default=datetime.now(tz=UTC),
     )
 
     metadata = dict(snapshot.metadata or {})
@@ -141,19 +145,19 @@ def compute_helio_mind_index(
 # ---------------------------------------------------------------------------
 
 
-def _extract_index_values(values: List[float]) -> FloatArray:
+def _extract_index_values(values: list[float]) -> FloatArray:
     if not values:
         return np.zeros(0, dtype=np.float64)
     return np.asarray(values, dtype=np.float64)
 
 
-def _extract_imf_component(vectors: List[IMFVector]) -> FloatArray:
+def _extract_imf_component(vectors: list[IMFVector]) -> FloatArray:
     if not vectors:
         return np.zeros(0, dtype=np.float64)
     return np.asarray([vec.bz_nt for vec in vectors], dtype=np.float64)
 
 
-def _extract_wind_component(samples: List[SolarWindSample], attr: str) -> FloatArray:
+def _extract_wind_component(samples: list[SolarWindSample], attr: str) -> FloatArray:
     if not samples:
         return np.zeros(0, dtype=np.float64)
     return np.asarray([getattr(sample, attr) for sample in samples], dtype=np.float64)
@@ -210,12 +214,12 @@ def _classify(score: float) -> str:
     return "alerta"
 
 
-def _build_alerts(components: HelioMindComponents) -> List[str]:
+def _build_alerts(components: HelioMindComponents) -> list[str]:
     # Limiares em fração do p99 calibrado (OMNI2 2020-2025).
     # 0.6 ≈ top 5-10% das horas; 0.7 ≈ top 2-3%.
     # Evidência cardiovascular (grau A), psiquiátrica (grau C).
     # Ver docs/SCIENTIFIC_FOUNDATIONS.md §5.3.
-    alerts: List[str] = []
+    alerts: list[str] = []
     if components.kp_activity >= 0.7:  # Kp ≥ 6.3 ≈ G3 (NOAA)
         alerts.append("Kp elevado — tempestade geomagnetica em curso")
     if components.dst_storm_intensity >= 0.6:  # |Dst| ≥ 47 nT (≈ top 5% das horas)
@@ -229,8 +233,8 @@ def _build_alerts(components: HelioMindComponents) -> List[str]:
     return alerts
 
 
-def _latest_timestamp(snapshot: SolarObservation, default: Optional[datetime] = None) -> datetime:
-    candidates: List[datetime] = []
+def _latest_timestamp(snapshot: SolarObservation, default: datetime | None = None) -> datetime:
+    candidates: list[datetime] = []
     if snapshot.kp_series:
         candidates.append(snapshot.kp_series[-1].timestamp)
     if snapshot.dst_series:
@@ -240,5 +244,5 @@ def _latest_timestamp(snapshot: SolarObservation, default: Optional[datetime] = 
     if snapshot.solar_wind:
         candidates.append(snapshot.solar_wind[-1].timestamp)
     if not candidates:
-        return default if default is not None else datetime.now(tz=timezone.utc)
+        return default if default is not None else datetime.now(tz=UTC)
     return max(candidates)

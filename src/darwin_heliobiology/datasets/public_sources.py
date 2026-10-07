@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass(slots=True)
@@ -14,7 +13,7 @@ class DatasetReference:
     license: str
 
 
-PUBLIC_DATASETS: Dict[str, DatasetReference] = {
+PUBLIC_DATASETS: dict[str, DatasetReference] = {
     "noaa_swpc": DatasetReference(
         name="NOAA Space Weather Prediction Center",
         description="Índices geomagnéticos e vento solar (Kp, Dst, ACE).",

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 
-from darwin_heliobiology.pipelines.hrv_mood import build_hrv_mood_records, records_to_dataframe
+from darwin_heliobiology.pipelines.hrv_mood import (
+    build_hrv_mood_records,
+    records_to_dataframe,
+)
 
 EXPECTED_COLUMNS = [
     "subject_id",
@@ -28,7 +31,7 @@ EXPECTED_COLUMNS = [
 
 def _synthetic_csv(tmp_path: Path, *, n_samples: int = 60) -> Path:
     """Cria CSV sintético com RR intervals e timestamps."""
-    base = datetime(2025, 6, 1, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2025, 6, 1, 10, 0, tzinfo=UTC)
     rows = []
     for i in range(n_samples):
         ts = base + timedelta(seconds=i)

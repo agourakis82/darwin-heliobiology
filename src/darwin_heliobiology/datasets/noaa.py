@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -15,10 +14,10 @@ from darwin_heliobiology.core.solar_atlas import SolarAtlas
 class NOAAIngestionResult:
     """Resultado da ingestão de dados brutos NOAA SWPC."""
 
-    kp_path: Optional[Path]
-    dst_path: Optional[Path]
-    solar_wind_path: Optional[Path]
-    imf_path: Optional[Path]
+    kp_path: Path | None
+    dst_path: Path | None
+    solar_wind_path: Path | None
+    imf_path: Path | None
     total_records: int
 
 
@@ -38,7 +37,7 @@ def _persist_df(df: pd.DataFrame, path: Path) -> Path:
 
 def fetch_and_persist_noaa(
     *,
-    atlas: Optional[SolarAtlas] = None,
+    atlas: SolarAtlas | None = None,
     hours: int = 24,
     output_dir: Path = Path("data/raw/noaa"),
     suffix: str = ".parquet",
@@ -53,10 +52,10 @@ def fetch_and_persist_noaa(
     imf_vectors = atlas.fetch_imf(hours=hours)
 
     total = 0
-    kp_path: Optional[Path] = None
-    dst_path: Optional[Path] = None
-    wind_path: Optional[Path] = None
-    imf_path: Optional[Path] = None
+    kp_path: Path | None = None
+    dst_path: Path | None = None
+    wind_path: Path | None = None
+    imf_path: Path | None = None
 
     if kp_series:
         df_kp = pd.DataFrame([asdict(s) for s in kp_series])

@@ -12,7 +12,6 @@ O módulo segue os princípios de Fenomenologia Codificada do manifesto:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 
 @dataclass(slots=True)
@@ -45,7 +44,7 @@ class SolarPsychodynamics:
     suicidality_index: float
     circadian_shift: float
 
-    def phase_coordinates(self) -> Tuple[float, float, float, float, float, float, float]:
+    def phase_coordinates(self) -> tuple[float, float, float, float, float, float, float]:
         """Geodésica no manifold Ψ.
 
         Retorna as coordenadas que alimentam modelos downstream – mantendo
@@ -62,7 +61,7 @@ class SolarPsychodynamics:
             self.circadian_shift,
         )
 
-    def curvature_tensor(self) -> Dict[str, float]:
+    def curvature_tensor(self) -> dict[str, float]:
         """Mapeia curvaturas epistemológicas do estado atual.
 
         - ``psycho_gravity`` monitora a força de acoplamento solar-mental.
@@ -80,7 +79,7 @@ class SolarPsychodynamics:
             "discordance": round(discordance, 3),
         }
 
-    def epistemic_alerts(self) -> List[str]:
+    def epistemic_alerts(self) -> list[str]:
         """Gera alertas interpretáveis com foco em saúde mental.
 
         **Graus de evidência** (ver docs/SCIENTIFIC_FOUNDATIONS.md):
@@ -90,7 +89,7 @@ class SolarPsychodynamics:
           do sono, mas ligação com atividade geomagnética é especulativa.
         """
 
-        alerts: List[str] = []
+        alerts: list[str] = []
 
         # EXPLORATÓRIO (grau D): não existe estudo que associe Kp individual a risco
         # suicida individual.  Correlações ecológicas (Gordon & Berk 2003) são

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, List, Optional
+from typing import Any
 
 import requests
 
@@ -38,7 +38,7 @@ class SolarAtlas:
     """
 
     base_url: str = "https://services.swpc.noaa.gov"
-    session: Optional[requests.Session] = None
+    session: requests.Session | None = None
     timeout: int = DEFAULT_TIMEOUT
 
     # --------------------------- Helpers internos ---------------------------
@@ -47,7 +47,7 @@ class SolarAtlas:
             self.session = requests.Session()
         return self.session
 
-    def _get_json(self, path: str) -> List[Any]:
+    def _get_json(self, path: str) -> list[Any]:
         url = f"{self.base_url}{path}"
         response = self._http().get(url, timeout=self.timeout)
         response.raise_for_status()
@@ -57,15 +57,15 @@ class SolarAtlas:
         return [data]
 
     # ------------------------------ KPI séries ------------------------------
-    def fetch_kp_index(self, hours: int = 24) -> List[SolarIndex]:
+    def fetch_kp_index(self, hours: int = 24) -> list[SolarIndex]:
         """Retorna série 1-min do índice planetário Kp (últimas ``hours``)."""
 
         raw = list(self._get_json("/json/planetary_k_index_1m.json"))
         cutoff = datetime.now(tz=UTC) - timedelta(hours=hours)
 
-        series: List[SolarIndex] = []
+        series: list[SolarIndex] = []
         for entry in raw:
-            timestamp = datetime.fromisoformat(entry["time_tag"].replace("Z", "+00:00"))
+            timestamp = datetime.fromisoformat(entry["time_tag"])
             if timestamp < cutoff:
                 continue
             kp_value = float(entry.get("kp", entry.get("kp_index", entry.get("estimated_kp", 0.0))))
@@ -73,16 +73,16 @@ class SolarAtlas:
 
         return series
 
-    def fetch_dst_index(self, hours: int = 24) -> List[SolarIndex]:
+    def fetch_dst_index(self, hours: int = 24) -> list[SolarIndex]:
         """Retorna série horária do índice Dst (Kyoto)."""
 
         raw = list(self._get_json("/products/kyoto-dst.json"))
         data = raw[1:] if raw and isinstance(raw[0], list) else raw
         cutoff = datetime.now(tz=UTC) - timedelta(hours=hours)
 
-        series: List[SolarIndex] = []
+        series: list[SolarIndex] = []
         for entry in data:
-            timestamp = datetime.fromisoformat(entry[0].replace("Z", "+00:00"))
+            timestamp = datetime.fromisoformat(entry[0])
             if timestamp < cutoff:
                 continue
             dst_value = float(entry[1])
@@ -91,15 +91,15 @@ class SolarAtlas:
         return series
 
     # ----------------------- Vento solar / IMF series -----------------------
-    def fetch_solar_wind(self, hours: int = 24) -> List[SolarWindSample]:
+    def fetch_solar_wind(self, hours: int = 24) -> list[SolarWindSample]:
         """Recupera dados do vento solar (ACE SWEPAM 1m)."""
 
         raw = list(self._get_json("/json/ace/swepam_1m.json"))
         cutoff = datetime.now(tz=UTC) - timedelta(hours=hours)
 
-        samples: List[SolarWindSample] = []
+        samples: list[SolarWindSample] = []
         for entry in raw:
-            timestamp = datetime.fromisoformat(entry["time_tag"].replace("Z", "+00:00"))
+            timestamp = datetime.fromisoformat(entry["time_tag"])
             if timestamp < cutoff:
                 continue
             samples.append(
@@ -113,15 +113,15 @@ class SolarAtlas:
 
         return samples
 
-    def fetch_imf(self, hours: int = 24) -> List[IMFVector]:
+    def fetch_imf(self, hours: int = 24) -> list[IMFVector]:
         """Recupera componentes do campo magnético interplanetário (ACE MAG 1m)."""
 
         raw = list(self._get_json("/json/ace/mag_1m.json"))
         cutoff = datetime.now(tz=UTC) - timedelta(hours=hours)
 
-        vectors: List[IMFVector] = []
+        vectors: list[IMFVector] = []
         for entry in raw:
-            timestamp = datetime.fromisoformat(entry["time_tag"].replace("Z", "+00:00"))
+            timestamp = datetime.fromisoformat(entry["time_tag"])
             if timestamp < cutoff:
                 continue
             vectors.append(

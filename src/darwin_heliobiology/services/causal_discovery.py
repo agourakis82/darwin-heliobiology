@@ -9,7 +9,7 @@ causa atividade solar).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -35,22 +35,22 @@ class CausalLink:
 class CausalDiscoveryResult:
     """Resultado consolidado da descoberta causal."""
 
-    links: List[CausalLink]
-    variable_names: List[str]
+    links: list[CausalLink]
+    variable_names: list[str]
     tau_max: int
     method: str
-    significant_links: List[CausalLink]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    significant_links: list[CausalLink]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def prepare_causal_dataframe(
     solar_df: pd.DataFrame,
     hrv_df: pd.DataFrame,
     *,
-    solar_cols: Optional[List[str]] = None,
-    bio_cols: Optional[List[str]] = None,
+    solar_cols: list[str] | None = None,
+    bio_cols: list[str] | None = None,
     resample_freq: str = "h",
-) -> Tuple[np.ndarray, List[str]]:
+) -> tuple[np.ndarray, list[str]]:
     """Alinha dados solares e HRV em array (T x N) para tigramite.
 
     Parameters
@@ -83,7 +83,7 @@ def prepare_causal_dataframe(
     bio = bio.set_index("timestamp").resample(resample_freq).mean()
 
     merged = solar.join(bio, how="inner").dropna()
-    var_names_mapped: List[str] = []
+    var_names_mapped: list[str] = []
     for col in solar_cols:
         short = col.replace("_index", "").replace("_nt", "").replace("_gsm", "")
         var_names_mapped.append(short)
@@ -96,9 +96,9 @@ def prepare_causal_dataframe(
 
 
 def build_helio_mood_priors(
-    var_names: List[str],
+    var_names: list[str],
     tau_max: int = 48,
-) -> Dict[int, Dict[Tuple[int, int], Any]]:
+) -> dict[int, dict[tuple[int, int], Any]]:
     """Constrói link_assumptions para PCMCI+ com priors heliobiológicos.
 
     Regras de domínio:
@@ -111,12 +111,12 @@ def build_helio_mood_priors(
     solar_indices = {i for i, v in enumerate(var_names) if v in SOLAR_VARS}
     bio_indices = {i for i, v in enumerate(var_names) if v in BIO_VARS}
 
-    link_assumptions: Dict[int, Dict[Tuple[int, int], Any]] = {}
+    link_assumptions: dict[int, dict[tuple[int, int], Any]] = {}
 
     for j in range(n):
-        assumptions: Dict[Tuple[int, int], Any] = {}
+        assumptions: dict[tuple[int, int], Any] = {}
         for i in range(n):
-            for lag in range(0, tau_max + 1):
+            for lag in range(tau_max + 1):
                 if lag == 0 and i >= j:
                     # PCMCI+ contemporâneo: evitar duplicatas
                     continue
@@ -134,12 +134,12 @@ def build_helio_mood_priors(
 
 def run_pcmci_plus(
     data: np.ndarray,
-    var_names: List[str],
+    var_names: list[str],
     *,
     tau_max: int = 48,
     alpha: float = 0.05,
     method: str = "ParCorr",
-    priors: Optional[Dict[int, Dict[Tuple[int, int], Any]]] = None,
+    priors: dict[int, dict[tuple[int, int], Any]] | None = None,
 ) -> CausalDiscoveryResult:
     """Executa PCMCI+ via tigramite e retorna links causais.
 
@@ -195,24 +195,23 @@ def run_pcmci_plus(
     val_matrix = results["val_matrix"]
     p_matrix = results["p_matrix"]
 
-    links: List[CausalLink] = []
+    links: list[CausalLink] = []
     n_vars = len(var_names)
 
     for i in range(n_vars):
         for j in range(n_vars):
             for lag in range(tau_max + 1):
                 edge = graph[i, j, lag]
-                if edge not in ("", ""):
-                    if edge in ("-->", "o-o", "x-x", "<->"):
-                        links.append(
-                            CausalLink(
-                                source=var_names[i],
-                                target=var_names[j],
-                                lag=lag,
-                                coefficient=float(val_matrix[i, j, lag]),
-                                p_value=float(p_matrix[i, j, lag]),
-                            )
+                if edge in ("-->", "o-o", "x-x", "<->"):
+                    links.append(
+                        CausalLink(
+                            source=var_names[i],
+                            target=var_names[j],
+                            lag=lag,
+                            coefficient=float(val_matrix[i, j, lag]),
+                            p_value=float(p_matrix[i, j, lag]),
                         )
+                    )
 
     significant = [link for link in links if link.p_value < alpha]
 
